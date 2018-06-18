@@ -1,0 +1,29 @@
+# Automator 3.0 - SQL Tables
+## `T_AUTO_TASKS`
+### To Add
+* [ ] `MONTH_DAYS`
+* [ ] `WEEK_DAYS`
+* [ ] `TIMES`
+* [ ] `START_DATETIME`
+* [ ] `MINUTES`
+* [ ] `PRIORITY`
+* [ ] `MONTHS`
+* [ ] `WEEKS`
+
+### To Remove
+* [ ] `AUTO_RECURRENCE_DAY`
+* [ ] `CREATED_DATE`?
+* [ ] `LAST_RUN`?
+* [ ] `WORKBOOK_NAME`?
+* [ ] `RECURRENCE_HOUR`?
+
+
+### To Change
+* [ ] `DATA_SOURCE -> INPUT_SOURCE`?
+* [ ] `DATA_SOURCE_ID -> INPUT_SOURCE_ID`?
+* [ ] `DATA_STORAGE_TYPE -> INPUT_STORAGE_TYPE`?
+* [ ] `DATA_STORAGE_ID -> INPUT_STORAGE_ID`?
+* [ ] `STORAGE_TYPE -> OUTPUT_STORAGE_TYPE`?
+* [ ] `STORAGE_ID -> OUTPUT_STORAGE_ID`?
+* [ ] `FILE_NAME -> OUTPUT_NAME`?
+
