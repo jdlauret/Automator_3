@@ -1,26 +1,29 @@
+# %% Imports
+import datetime as dt
 import json
 import os
 import re
+import subprocess as sp
+
 import cx_Oracle
-import pygsheets
 import numpy as np
 import pandas as pd
-import datetime as dt
-import subprocess as sp
+import pygsheets
+from time import sleep
 from dateutil.parser import parse
+from openpyxl import Workbook, load_workbook
 from pydrive.auth import GoogleAuth
 from pydrive.drive import GoogleDrive
-from openpyxl import Workbook, load_workbook
+from utilities.recurrences import recur_test
 
-# Module Directories
+# %% Module Directories
 top_dir = os.path.dirname(__file__)
 credentials_dir = os.path.join(top_dir, 'credentials')
 script_dir = os.path.join(top_dir, 'script_storage')
 file_storage_dir = os.path.join(top_dir, 'file_storage')
 
-# TODO Add Emailer Function
 
-
+# %% General Use Functions
 def check_for_file(file_path):
     """
     Check if a file exists in target folder
@@ -80,12 +83,13 @@ def range_builder(start_row, start_col, end_row=None, end_col=None):
     return range_name
 
 
+# %% Data Warehouse
 class DataWarehouse:
     """
     DataWarehouse class is used for interacting with the Vivint Solar Data Warehouse
     """
 
-    # Unversal Character set to remove from strings and replace with a regular space
+    # Universal Character set to remove from strings and replace with a regular space
     bad_characters = [chr(9), chr(10), chr(13)]
 
     def __init__(self, user, connection_type='prod', encoding='utf-8'):
@@ -104,7 +108,7 @@ class DataWarehouse:
         # Setup all basic variables
         self.results = None
         self.column_data = None
-        self.column_names = None
+        self.column_names = []
         self.data_for_upload = None
         self.results_with_header = None
         self.batch_errors = []
@@ -112,6 +116,9 @@ class DataWarehouse:
 
         # Used to ignore the id column when sending information to the data warehouse
         self.ignore_id_col = True
+
+        self.db = None
+        self.cursor = None
 
     def open_connection(self):
         """
@@ -198,6 +205,24 @@ class DataWarehouse:
             pass
         self.close_connection()
 
+    def update_last_run(self, task_id, run_time):
+        table_name = 'JDLAURET.T_AUTO_TASKS'
+        column_name = 'LAST_RUN'
+        last_run = run_time.strftime('%m-%d-%y %H:%M:%S')
+        query = """UPDATE {table_name} t
+                        SET t.{column_name} = TO_DATE({new_value}, 'MM-DD-YY HH24:MI:SS')
+                        WHERE t.ID = {task_id}""".format(table_name=table_name,
+                                                       column_name=column_name,
+                                                       new_value=last_run,
+                                                       task_id=task_id)
+        self.open_connection()
+        try:
+            self.cursor.execute(query)
+        except:
+            # TODO create Exception Handling (probably as it's own function)
+            pass
+        self.close_connection()
+
     def get_columns_data(self, table_name, ignore_id_col=True):
         """
         Sets column data for the table name submitted
@@ -251,6 +276,7 @@ class DataWarehouse:
             self.column_data = list(self.cursor.description)
             self.column_names = [x[0] for x in self.column_data]
             self.results = [list(x) for x in self.cursor.fetchall()]
+            self.format_query_results()
             self.set_results_with_header()
 
         except cx_Oracle.DatabaseError as e:
@@ -386,7 +412,7 @@ class DataWarehouse:
                                column_names=', '.join(self.column_names),
                                values=', '.join(bind_variables))
             self.open_connection()
-            # Prepare Query and Setup Bindnames
+            # Prepare Query and setup bind names
             self.cursor.prepare(query)
             self.cursor.bindnames()
 
@@ -414,6 +440,7 @@ class DataWarehouse:
             self.close_connection()
 
 
+# %% CSV Generation
 class CsvGenerator:
     """
     Generate CSV in File Storage directory
@@ -487,17 +514,26 @@ class CsvGenerator:
             raise
 
 
+# %% Python Scripts
 class PythonScript:
     """
-    PythonScript used to run additonal python scripts
+    PythonScript used to run additional python scripts
     """
 
-    def __init__(self, file_path):
+    def __init__(self, params):
         """
-        :param file_path: The File Path including the .py file name
+        :param params: The task_data dictionary from Task()
         """
-        self.file_path = file_path
-        self.file_name = os.path.basename(self.file_path)
+        self.file_name = params.get('file_name')
+
+        scripts = os.listdir(script_dir)
+
+        if self.file_name in scripts:
+            self.file_path = script_dir
+        else:
+            self.file_path = params.get('data_source_id')
+
+        self.script_path = os.path.join(self.file_path, self.file_name)
         self.successful_run = False
 
     def run_script(self):
@@ -506,7 +542,7 @@ class PythonScript:
         """
         try:
             # Generate command console python command
-            command = 'python' + ' "' + self.file_path + '"'
+            command = 'python' + ' "' + self.script_path + '"'
 
             child = sp.Popen(command)
             stream_data = child.communicate()[0]
@@ -518,11 +554,12 @@ class PythonScript:
             if rc == 0:
                 self.successful_run = True
 
-        except:
+        except Exception as e:
             # TODO create Exception Handling
-            raise
+            raise e
 
 
+# %% Excel Generator
 class ExcelGenerator:
     """
     Generate Excel file with Data submitted
@@ -553,6 +590,11 @@ class ExcelGenerator:
         self.params = params
 
         self.data = data
+        self.data_len = 0
+        self.data_wid = 0
+
+        self.wb = None
+        self.ws = None
 
         # Extract values from params dict
         self.header = params.get('header')
@@ -713,6 +755,7 @@ class ExcelGenerator:
         print('Data written to {0}'.format(self.ws))
 
 
+# %% Google Sheets
 class GSheets:
     def __init__(self, sheet_id):
         self.sheet_id = sheet_id
@@ -720,7 +763,7 @@ class GSheets:
         self.spreadsheet = self.gc.open_by_key(self.sheet_id)
 
     def get_credentials(self):
-        return json.loads(os.environ.get("GOOGLE_CREDENTIALS"))
+        return json.loads(os.environ.get('GOOGLE_CREDENTIALS'))
 
     def get_row_count(self, sheet_name):
         wks = self.spreadsheet.worksheet('title', sheet_name)
@@ -766,6 +809,7 @@ class GSheets:
         return range_data
 
 
+# %% Google Drive
 class GDrive:
 
     def __init__(self, params=None):
@@ -853,6 +897,7 @@ class GDrive:
         return f.GetContentString()
 
 
+# %% Task Metrics
 class TaskMetrics:
     def __init__(self, params):
         self.id = params.get('id')
@@ -866,7 +911,7 @@ class TaskMetrics:
                              self.run_type, dt.datetime.now()
                              ]]
         self.dw = DataWarehouse('admin')
-        self.table_name = 'RIO_BRANHAM.T_AUTO_METRICS'
+        self.table_name = 'JDLAURET.T_AUTO_METRICS'
         self.set_task_completion_time()
 
     def set_task_completion_time(self):
@@ -881,14 +926,20 @@ class TaskMetrics:
         self.dw.insert_data_to_table(self.table_name, self.upload_line, header_included=False, ignore_id_col=False)
 
 
+# %% Task
 class Task:
-    def __init__(self, task_data, task_header, run_type='Automated'):
-        self.task_line = task_data
+    def __init__(self, task_line, task_header, run_type='Automated'):
+        self.task_line = task_line
         self.task_header = task_header
         self.run_type = run_type
         self.task_data = {}
         self.metrics = None
         self.create_task_object()
+
+        self.task_name = self.task_data.get('namex')
+        self.task_id = self.task_data.get('id')
+        self.run_requested = self.task_data.get('run_requested')
+
         try:
             self.data_source = self.task_data['data_source'].lower()
         except Exception:
@@ -920,6 +971,16 @@ class Task:
 
         self.metrics = None
 
+    def refresh_task_data(self):
+        dw = DataWarehouse('admin')
+        query = 'SELECT * FROM JDLAURET.T_AUTO_TASKS T WHERE T.ID = :ID'
+        dw.query_results(query, bindvars=[self.task_id])
+        self.task_line = dw.results
+        self.task_header = dw.column_names
+        self.create_task_object()
+        self.task_name = self.task_data.get('namex')
+        self.run_requested = self.task_data.get('run_requested')
+
     def create_task_object(self):
         for i, item in enumerate(self.task_header):
             if self.task_line[i] == '':
@@ -950,7 +1011,7 @@ class Task:
             self.task_complete = True
 
         elif self.data_source == 'python':
-            p_script = PythonScript(self.data_source_id)
+            p_script = PythonScript(self.task_data)
             p_script.run_script()
             self.task_complete = p_script.successful_run
 
@@ -1025,13 +1086,33 @@ class Task:
                     self.task_complete = True
         self.task_data['upload_time'] = (dt.datetime.now() - upload_time_start).seconds
 
-    def run_task(self):
-        self.get_input_data()
-        if self.input_complete:
-            self.set_output_data()
-            if self.output_complete:
-                self.upload_files()
+    def update_last_run(self):
+        if self.run_requested.lower() != 'true':
+            task_id = self.task_data.get('id')
 
-        if self.task_complete:
-            self.metrics = TaskMetrics(self.task_data)
-            self.metrics.submit_task_time()
+            dw = DataWarehouse('admin')
+            dw.update_last_run(task_id, dt.datetime.now())
+
+    def run_task(self):
+        # while True:
+        self.refresh_task_data()
+        # if self.task_data.get('operational').lower() == 'non-operational':
+        #     break
+        if recur_test(self.task_data) or self.run_requested.lower() == 'true':
+            print(self.task_name, 'in progress')
+            self.get_input_data()
+            if self.input_complete:
+                self.set_output_data()
+                if self.output_complete:
+                    self.upload_files()
+
+            if self.task_complete:
+                self.update_last_run()
+                print(self.task_name, 'completed')
+                self.metrics = TaskMetrics(self.task_data)
+                self.metrics.submit_task_time()
+        # t = dt.datetime.utcnow()
+        # sleeptime = 60 - (t.second + t.microsecond / 1000000.0)
+        # sleep(sleeptime)
+
+

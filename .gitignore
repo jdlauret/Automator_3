@@ -59,6 +59,6 @@ target/
 
 \.idea/
 
-credentials/mycred.txt
-
 credentials/mycreds\.txt
+
+file_storage/
