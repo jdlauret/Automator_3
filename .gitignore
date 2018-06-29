@@ -62,3 +62,5 @@ target/
 credentials/mycreds\.txt
 
 file_storage/
+
+credentials/

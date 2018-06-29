@@ -758,12 +758,41 @@ class ExcelGenerator:
 # %% Google Sheets
 class GSheets:
     def __init__(self, sheet_id):
-        self.sheet_id = sheet_id
-        self.gc = pygsheets.authorize(self.get_credentials(), no_cache=True)
+        self.sheet_id = self.key_extractor(sheet_id)
+        self.credentials = self.get_credentials()
+        self.gc = pygsheets.authorize(self.credentials, outh_creds_store='credentials')
         self.spreadsheet = self.gc.open_by_key(self.sheet_id)
 
+    def key_extractor(self, url):
+        drive_key_len = 28
+        spreadsheet_key_len = 44
+        if url is not None:
+            if len(url) > drive_key_len \
+                    or len(url) > spreadsheet_key_len:
+
+                if 'file/d/' in url:
+                    file_start = url.index('file/d/') + len('file/d/')
+                    new_url = url[file_start:]
+                    return new_url[:new_url.index('/')]
+
+                if 'spreadsheets/d/' in url:
+                    file_start = url.index('spreadsheets/d/') + len('spreadsheets/d/')
+                    new_url = url[file_start:]
+                    return new_url[:new_url.index('/')]
+
+                if 'folders/' in url:
+                    file_start = url.index('folders/') + len('folders/')
+                    return url[file_start:]
+
+                if 'id=' in url:
+                    file_start = url.index('id=') + len('id=')
+                    return url[file_start:]
+
+        return url
+
     def get_credentials(self):
-        return json.loads(os.environ.get('GOOGLE_CREDENTIALS'))
+        print(os.getcwd())
+        return 'credentials/client_secret.json'
 
     def get_row_count(self, sheet_name):
         wks = self.spreadsheet.worksheet('title', sheet_name)
@@ -929,33 +958,23 @@ class TaskMetrics:
 # %% Task
 class Task:
     def __init__(self, task_line, task_header, run_type='Automated'):
+        self.dw = DataWarehouse('admin')
         self.task_line = task_line
         self.task_header = task_header
         self.run_type = run_type
         self.task_data = {}
         self.metrics = None
-        self.create_task_object()
 
-        self.task_name = self.task_data.get('namex')
-        self.task_id = self.task_data.get('id')
-        self.run_requested = self.task_data.get('run_requested')
+        self.task_name = None
+        self.task_id = None
+        self.run_requested = None
+        self.data_source = None
+        self.data_source_id = None
+        self.data_storage = None
+        self.data_storage_id = None
+        self.storage_id = None
 
-        try:
-            self.data_source = self.task_data['data_source'].lower()
-        except Exception:
-            self.data_source = None
-        self.data_source_id = self.task_data['data_source_id']
-        try:
-            self.data_storage = self.task_data['data_storage_type'].lower()
-        except Exception:
-            self.data_storage = None
-        self.data_storage_id = self.task_data['data_storage_id']
-        try:
-            self.storage = self.task_data['storage_type'].lower()
-        except Exception:
-            self.storage = None
-        self.storage_id = self.task_data['storage_id']
-
+        self.operational = None
         self.file_name = None
 
         self.input_complete = False
@@ -971,15 +990,30 @@ class Task:
 
         self.metrics = None
 
+        self.failed_attempts = 0
+
+        self.refresh_task_data()
+
     def refresh_task_data(self):
-        dw = DataWarehouse('admin')
+
         query = 'SELECT * FROM JDLAURET.T_AUTO_TASKS T WHERE T.ID = :ID'
-        dw.query_results(query, bindvars=[self.task_id])
-        self.task_line = dw.results
-        self.task_header = dw.column_names
+        if self.task_id is not None:
+            self.dw.query_results(query, bindvars=[self.task_id])
+            self.task_line = self.dw.results[0]
+            self.task_header = self.dw.column_names
+
         self.create_task_object()
+
         self.task_name = self.task_data.get('namex')
+        self.task_id = self.task_data.get('id')
         self.run_requested = self.task_data.get('run_requested')
+        self.data_source = self.task_data.get('data_source')
+        self.data_storage = self.task_data.get('data_storage')
+        self.data_source_id = self.task_data.get('data_source_id')
+        self.data_storage_id = self.task_data.get('data_storage_id')
+        self.storage_type = self.task_data.get('storage_type')
+        self.storage_id = self.task_data.get('storage_id')
+        self.operational = self.task_data.get('operational')
 
     def create_task_object(self):
         for i, item in enumerate(self.task_header):
@@ -991,7 +1025,7 @@ class Task:
 
     def get_input_data(self):
         input_time_start = dt.datetime.now()
-        if self.data_source == 'sql':
+        if self.data_source.lower() == 'sql':
             dw = DataWarehouse('admin')
             query = GDrive({'file_id': self.data_source_id}).read_drive_file()
             dw.query_results(query)
@@ -1004,13 +1038,12 @@ class Task:
             if len(self.input_data) > 0:
                 self.set_output_data()
 
-        elif self.data_source == 'sql command':
-            dw = DataWarehouse('admin')
+        elif self.data_source.lower() == 'sql command':
             query = GDrive({'file_id': self.data_source_id}).read_drive_file()
-            dw.execute(query)
+            self.dw.execute(query)
             self.task_complete = True
 
-        elif self.data_source == 'python':
+        elif self.data_source.lower() == 'python':
             p_script = PythonScript(self.task_data)
             p_script.run_script()
             self.task_complete = p_script.successful_run
@@ -1077,7 +1110,7 @@ class Task:
 
     def upload_files(self):
         upload_time_start = dt.datetime.now()
-        if self.storage == 'Google Drive':
+        if self.storage_type == 'Google Drive':
             for file in os.listdir(file_storage_dir):
                 if file == self.file_name:
                     drive = GDrive(params=self.task_data)
@@ -1090,15 +1123,16 @@ class Task:
         if self.run_requested.lower() != 'true':
             task_id = self.task_data.get('id')
 
-            dw = DataWarehouse('admin')
-            dw.update_last_run(task_id, dt.datetime.now())
+            self.dw.update_last_run(task_id, dt.datetime.now())
+
+    def update_run_requested(self):
+        self.dw.update_task(self.task_id, 'RUN_REQUESTED', 'FALSE')
 
     def run_task(self):
-        # while True:
         self.refresh_task_data()
-        # if self.task_data.get('operational').lower() == 'non-operational':
-        #     break
-        if recur_test(self.task_data) or self.run_requested.lower() == 'true':
+        if (recur_test(self.task_data)
+            or self.run_requested.lower() == 'true') \
+                and self.operational != 'Non-Operational':
             print(self.task_name, 'in progress')
             self.get_input_data()
             if self.input_complete:
@@ -1107,12 +1141,16 @@ class Task:
                     self.upload_files()
 
             if self.task_complete:
+                if self.run_requested.lower() == 'true':
+                    self.update_run_requested()
                 self.update_last_run()
                 print(self.task_name, 'completed')
                 self.metrics = TaskMetrics(self.task_data)
                 self.metrics.submit_task_time()
-        # t = dt.datetime.utcnow()
-        # sleeptime = 60 - (t.second + t.microsecond / 1000000.0)
-        # sleep(sleeptime)
 
+
+# %% FailedRun
+class FailedRun:
+    def __init__(self, task_id):
+        pass
 

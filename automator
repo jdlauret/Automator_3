@@ -1,83 +1,87 @@
-import queue
-import threading
-import time
-from models import DataWarehouse, Task
+import datetime as dt
+from time import sleep
+from threading import Thread
+from queue import Queue
+from models import DataWarehouse, Task, FailedRun
 
 
-def create_task_objects():
-    dw = DataWarehouse('admin')
-    dw.get_table_data(task_table)
-    task_data = dw.results
-    task_header = dw.column_names
+class ThreadClass(Thread):
+    def __init__(self, queue):
+        Thread.__init__(self)
+        self.queue = queue
 
-    return [Task(row, task_header) for row in task_data]
-
-
-def worker(task_obj):
-    task_obj.run_task()
+    def run(self):
+        while True:
+            task = self.queue.get()
+            try:
+                task.run_task()
+            except Exception as e:
+                pass
+            self.queue.task_done()
 
 
 class Automator:
     def __init__(self):
-        pass
+        self.dw = DataWarehouse('admin')
+        self.task_table = 'JDLAURET.T_AUTO_TASKS'
+        self.task_data_header = []
+        self.task_data = []
+        self.task_objects = {}
+        self.run_queue = Queue()
+        self.python_tasks = []
+        self.command_tasks = []
+        self.query_tasks = []
+        self.num_threads = 10
 
+    def refresh_task_data(self):
+        self.dw.get_table_data(self.task_table)
+        self.task_data_header = self.dw.column_names
+        self.task_data = self.dw.results
 
+    def create_task_objects(self):
+        self.task_objects = {}
+        for task in self.task_data:
+            new_task = Task(task, self.task_data_header)
+            self.task_objects[new_task.task_id] = new_task
 
+    def organize_tasks(self):
+        for key, task in self.task_objects.items():
+            if task.data_source is not None:
+                if task.data_source.lower() == 'python':
+                    self.python_tasks.append(task)
+                if task.data_source.lower() == 'sql command':
+                    self.command_tasks.append(task)
+                if task.data_source.lower() == 'sql':
+                    self.query_tasks.append(task)
+
+    def setup_queue(self, list):
+        for task in list:
+            self.run_queue.put(task)
+        self.run_queue.join()
+
+    def run_automator(self):
+        while True:
+            self.refresh_task_data()
+            self.create_task_objects()
+            self.organize_tasks()
+
+            for i in range(self.num_threads):
+                t = ThreadClass(self.run_queue)
+                t.setDaemon(True)
+                t.start()
+
+            self.setup_queue(self.python_tasks)
+
+            self.setup_queue(self.command_tasks)
+
+            self.setup_queue(self.query_tasks)
+
+            time = dt.datetime.utcnow()
+            sleep_time = 60 - (time.second + time.microsecond / 1000000.0)
+            sleep(sleep_time)
 
 
 if __name__ == '__main__':
-
-    task_table = 'JDLAURET.T_AUTO_TASKS'
-
-    while True:
-        tasks = create_task_objects()
-        python_queue = queue.Queue()
-        python_test_list = []
-
-        command_queue = queue.Queue()
-        command_test_list = []
-
-        query_queue = queue.Queue()
-        query_test_list = []
-
-        for task in tasks:
-            operational = task.task_data.get('operational')
-            task_type = task.task_data.get('data_source')
-            t = threading.Thread(target=worker,
-                                 args=(task,),
-                                 daemon=True,
-                                 name='thread {}'.format(task.task_name))
-            if operational.lower() == 'operational':
-                if task_type.lower() == 'python':
-                    python_queue.put(t)
-                    python_test_list.append(task)
-
-                elif task_type.lower() == 'sql command':
-                    command_test_list.append(task)
-                    command_queue.put(t)
-
-                elif task_type.lower() == 'sql':
-                    query_test_list.append(task)
-                    query_queue.put(t)
-
-        for item in query_test_list:
-            item.run_task()
-            p = ''
-
-        # while not python_queue.empty():
-        #     script = python_queue.get()
-        #     script.start()
-        #     print(script.name, 'thread started')
-        #     script.join()
-        #
-        # while not command_queue.empty():
-        #     command = command_queue.get()
-        #     command.start()
-        #     print(command.name, 'thread started')
-        #     command.join()
-        #
-        # while not query_queue.empty():
-        #     query = query_queue.get()
-        #     query.start()
-        #     print(query.name, 'thread started')
-        #     query.join()
+    print('Report Automation Tool')
+    app = Automator()
+    app.run_automator()
