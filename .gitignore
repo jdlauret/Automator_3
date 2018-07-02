@@ -58,9 +58,8 @@ docs/_build/
 target/
 
 \.idea/
-
-credentials/mycreds\.txt
+\desktop.ini
 
 file_storage/
-
+script_storage/
 credentials/
