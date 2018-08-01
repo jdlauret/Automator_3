@@ -3,8 +3,8 @@ import sys
 import csv
 import pandas as pd
 import numpy as np
-from utilities.google_bridge import download_file
-from utilities.oracle_bridge import update_table
+from Archive.google_bridge import download_file
+from automator_utilities.oracle_bridge import update_table
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from automator import find_main_dir
 

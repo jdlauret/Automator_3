@@ -27,7 +27,7 @@ import sys
 import pandas
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from automator import find_main_dir
-from utilities.oracle_bridge import update_table, clear_table
+from automator_utilities.oracle_bridge import update_table, clear_table
 
 main_directory = find_main_dir()
 storage_dir = os.path.join(main_directory, 'storage_files')

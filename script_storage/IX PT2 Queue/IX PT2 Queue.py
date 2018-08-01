@@ -1,5 +1,5 @@
 import datetime as dt
-from utilities.oracle_bridge import update_table, run_query, get_data_from_table
+from automator_utilities.oracle_bridge import update_table, run_query, get_data_from_table
 
 sql_file = 'IX Queuev6_Final.sql'
 table_name = 'JDLAURET.T_IX_PT2_QUEUE_H'

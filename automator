@@ -1,53 +1,109 @@
 import datetime as dt
-from time import sleep
+import time
 from threading import Thread
 from queue import Queue
-from models import DataWarehouse, Task, FailedRun
+from models import DataWarehouse, SnowFlakeDW, Task, FailedRun
 
 
 class ThreadClass(Thread):
     def __init__(self, queue):
+        """
+        Setup Thread and Assign a Queue to access
+        :param queue: The Queue the thread will access
+        """
         Thread.__init__(self)
         self.queue = queue
 
     def run(self):
+        # Run Thread
         while True:
+            # If task in Queue get task
             task = self.queue.get()
             try:
+                # Run Task
                 task.run_task()
             except Exception as e:
-                pass
+                # If task throws exception, send email
+                failed_task = FailedRun(task.task_data['owner_email'], task.task_id, task.task_name, e)
+                failed_task.send_error_email()
+
             self.queue.task_done()
 
 
 class Automator:
     def __init__(self):
+        """
+        Automator Settings
+        """
+        # Database Object to use
         self.dw = DataWarehouse('admin')
+        # Schema and Table containing task instructions
         self.task_table = 'JDLAURET.T_AUTO_TASKS'
-        self.task_data_header = []
-        self.task_data = []
+
+        self.task_table_column_names = []
+        self.task_table_data = []
+
+        # All Task Objects Store by Task ID
         self.task_objects = {}
+
+        # Queue for running tasks
         self.run_queue = Queue()
+
+        # Separated Task Lists
         self.python_tasks = []
         self.command_tasks = []
         self.query_tasks = []
+
+        # Max number of threads to have running
         self.num_threads = 10
 
+    def set_thread_number(self, thread_count):
+        """
+        Set the Max Number of threads
+        :param thread_count: Number of Thread to set
+        """
+        self.num_threads = thread_count
+
+    def set_database(self, new_db):
+        """
+        Change Database Object
+        :param new_db: New DB Object
+        """
+        self.dw = new_db
+
+    def set_database_table(self, table_name):
+        """
+        Change Task Table Name
+        :param table_name: New Table Name including Schema
+        """
+        self.task_table = table_name
+
     def refresh_task_data(self):
+        """
+        Get Task Data from Database
+        """
         self.dw.get_table_data(self.task_table)
-        self.task_data_header = self.dw.column_names
-        self.task_data = self.dw.results
+        self.task_table_column_names = self.dw.column_names
+        self.task_table_data = self.dw.results
 
     def create_task_objects(self):
-        self.task_objects = {}
-        for task in self.task_data:
-            new_task = Task(task, self.task_data_header)
-            self.task_objects[new_task.task_id] = new_task
+        """
+        Add tasks to Task Object Dictionary
+        """
+        for task in self.task_table_data:
+            new_task = Task(task, self.task_table_column_names)
+            if new_task.task_id not in self.task_objects.keys():
+                self.task_objects[new_task.task_id] = new_task
 
     def organize_tasks(self):
+        """
+        Sort tasks into 3 list
+        Python Task, SQL Command Tasks, and Query Tasks
+        """
         for key, task in self.task_objects.items():
-            if task.data_source is not None:
-                if task.data_source.lower() == 'python':
+            if task.data_source is not None \
+                    and task.operational.lower() == 'operational':
+                if task.data_source.lower() == 'python' and task.operational:
                     self.python_tasks.append(task)
                 if task.data_source.lower() == 'sql command':
                     self.command_tasks.append(task)
@@ -55,33 +111,62 @@ class Automator:
                     self.query_tasks.append(task)
 
     def setup_queue(self, list):
+        """
+        Add list of tasks to the Run Queue
+        :param list: The list of tasks to add to the Run Queue
+        """
         for task in list:
             self.run_queue.put(task)
+
+        # Wait for all items in the Queue to Finish
         self.run_queue.join()
 
+    def loop_sleep(self):
+        """
+        Sleep until the start of the next minute
+        If Sleep starts at the 59th second of the minute, loop will sleep for 1 second
+        """
+        for minutes in range(0, 59):
+            if minutes not in {x for x in range(60) if x % 5 == 0}:
+                snooze = 15 - minutes % 15
+                time.sleep(snooze) # Sleep until next quarter hour.
+
     def run_automator(self):
+        # Start Program Loop
         while True:
+            # Get Task Data
             self.refresh_task_data()
+            # Create Task Objects
             self.create_task_objects()
+            # Sort Tasks into Lists
             self.organize_tasks()
 
+            # Setup Threads
+            # Number of threads set in __init__
             for i in range(self.num_threads):
+                # Create ThreadClass with Run Queue
                 t = ThreadClass(self.run_queue)
+                # Set Thread to Daemon Thread
                 t.setDaemon(True)
                 t.start()
 
+            # Place Python Tasks into the Queue
             self.setup_queue(self.python_tasks)
 
+            # Place SQL Command Tasks into the Queue
             self.setup_queue(self.command_tasks)
 
+            # Place SQL Queries into the Queue
             self.setup_queue(self.query_tasks)
 
-            time = dt.datetime.utcnow()
-            sleep_time = 60 - (time.second + time.microsecond / 1000000.0)
-            sleep(sleep_time)
+            # Sleep till next quarter hour (0, 15, 30, 45)
+            self.loop_sleep()
 
 
 if __name__ == '__main__':
-    print('Report Automation Tool')
+    # Start Automator
+    print('Report Automation Tool Starting')
     app = Automator()
+    db = SnowFlakeDW()
+    db.set_user('JDLAURET')
     app.run_automator()

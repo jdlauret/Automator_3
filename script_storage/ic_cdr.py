@@ -28,7 +28,7 @@ import urllib.request
 import pandas
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from utilities.oracle_bridge import update_table, run_query
+from automator_utilities.oracle_bridge import update_table, run_query
 
 storage_dir = 'C:\\Users\\jonathan.lauret\\Google Drive\\Projects\\Python Projects\\Automator 3.0\\downloads'
 

@@ -4,8 +4,8 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 import time
 import datetime as dt
-from utilities.oracle_bridge import clear_table, update_table
-from utilities.google_bridge import sheet_data
+from automator_utilities.oracle_bridge import clear_table, update_table
+from Archive.google_bridge import sheet_data
 
 source_id = '1LLnbguhUtjTyGXq3MjHAP7jVPlvE_-YAQBA59JUYItM'
 destination_id = ''
