@@ -3,16 +3,14 @@ import sys
 import csv
 import pandas as pd
 import numpy as np
-from Archive.google_bridge import download_file
-from automator_utilities.oracle_bridge import update_table
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from automator import find_main_dir
 
-MAIN_DIR = find_main_dir()
-SOURCE_FILE_DIR = os.path.join(MAIN_DIR, 'source_files')
+from models import GDrive, SnowFlakeDW, SnowflakeConsole
+
+
 FILE_ID = '1PFz4qrZp2x6hhgP1asac2Bk_O6G4Jz4Q'
 FILE_NAME = 'Master WO Breakdown.csv'
-TABLE_NAME = 'SOLAR.T_WO_TELOGIS'
+TABLE_NAME = 'D_POST_INSTALL.T_WO_TELOGIS'
 
 
 def telogis_data_from_excel(file_path):
@@ -39,36 +37,43 @@ def telogis_data_from_excel(file_path):
     print('Converting Week from string to date')
     df['WO_WEEK'] = pd.to_datetime(df['WO_WEEK'])
     df = df.where((pd.notnull(df)), None)
-    return df.values.tolist()
+    return df
 
 
 if __name__ == '__main__':
+    db = SnowFlakeDW()
+    db.set_user('JDLAURET')
+    db.open_connection()
+    dw = SnowflakeConsole(db)
     print("Downloading Telogis Data")
-    download_path = os.path.join(SOURCE_FILE_DIR, FILE_NAME)
-    download_file(FILE_ID, download_path)
-    new_file = os.path.join(SOURCE_FILE_DIR, 'fixed_file.csv')
-
-    with open(download_path, 'r', encoding='utf-8', errors='ignore') as infile, \
-            open(new_file, 'w', encoding='utf-8') as outfile:
-
-        inputs = csv.reader(infile)
-        output = csv.writer(outfile)
-
-        for index, row in enumerate(inputs):
-            # Create file with no header
-            output.writerow(row)
-
+    gd = GDrive()
+    file = gd.download_file(FILE_ID, FILE_NAME)
+    new_file = FILE_NAME.replace('.csv', '') + '_fixed.csv'
     try:
-        telogis_data = telogis_data_from_excel(new_file)
-    except Exception as e:
-        raise e
+        with open(FILE_NAME, 'r', encoding='utf-8', errors='ignore') as infile, \
+                open(new_file, 'w', encoding='utf-8') as outfile:
 
-    # try:
-    #     clear_table(TABLE_NAME)
-    # except Exception as e:
-    #     raise e
+            inputs = csv.reader(infile)
+            output = csv.writer(outfile)
 
-    try:
-        update_table(TABLE_NAME, telogis_data, header_included=False, date_time=True, encoding='utf8')
-    except Exception as e:
-        raise e
+            for index, row in enumerate(inputs):
+                # Create file with no header
+                output.writerow(row)
+
+        try:
+            telogis_data = telogis_data_from_excel(new_file)
+            telogis_data.to_csv(new_file, sep=',', na_rep='', encoding='utf-8', index=False)
+            df = pd.read_csv(new_file)
+            df = df.where((pd.notnull(df)), None)
+            df = df.values.tolist()
+        except Exception as e:
+            raise e
+
+        try:
+            dw.insert_into_table(TABLE_NAME, df, overwrite=True)
+        except Exception as e:
+            raise e
+    finally:
+        db.close_connection()
+        os.remove(FILE_NAME)
+        os.remove(new_file)

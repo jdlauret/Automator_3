@@ -65,3 +65,7 @@ script_storage/
 credentials/
 
 Archive/
+
+sheets\.googleapis\.com-python\.json
+
+qualtrics_data/

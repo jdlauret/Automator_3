@@ -4,7 +4,7 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 import time
 import datetime as dt
-from automator_utilities.oracle_bridge import clear_table, update_table
+from models import SnowFlakeDW, SnowflakeConsole
 from Archive.google_bridge import sheet_data
 
 source_id = '1LLnbguhUtjTyGXq3MjHAP7jVPlvE_-YAQBA59JUYItM'
@@ -12,7 +12,10 @@ destination_id = ''
 table_name = 'JDLAURET.T_ATTENDANCE_HOTLINE'
 
 if __name__ == '__main__':
-
+    db = SnowFlakeDW()
+    db.set_user('JDLAURET')
+    db.open_connection()
+    dw = SnowflakeConsole(db)
     today = dt.datetime.today().date()
 
     sheet_data = sheet_data(source_id, 'Form Responses 3')
@@ -30,11 +33,13 @@ if __name__ == '__main__':
                 sheet_data[i][j] = new_time
 
     try:
-        clear_table(table_name)
+        dw._clear_table(table=table_name)
     except:
         pass
 
     try:
-        update_table(table_name, sheet_data, credentials='private', encoding='utf8', header_included=False)
+        dw.insert_into_table(table_name, sheet_data)
     except:
         pass
+
+    db.close_connection()

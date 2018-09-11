@@ -282,4 +282,4 @@ if __name__ == '__main__':
 
     processor = FileProcessor()
     processor.process_new_files()
-    SFDB._close_connection()
+    SFDB.close_connection()
