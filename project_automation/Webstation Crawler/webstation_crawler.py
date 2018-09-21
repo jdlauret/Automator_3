@@ -194,69 +194,69 @@ class PrimaryCrawler:
             print('Waiting for Today table to load')
             WebDriverWait(self.DRIVER, self.delay).until(EC.presence_of_element_located((By.ID, 'Today')))
             today_table = self.DRIVER.find_element_by_id('Today')
+            new_table = []
+            # Get the rows from the table
+            print('Finding most recent reports')
+            rows = today_table.find_elements(By.TAG_NAME, 'tr')
+
+            # Iterate through rows, find links and text and store them
+            for row in rows:
+                new_row = []
+                cols = row.find_elements(By.TAG_NAME, 'td')
+                for col in cols:
+                    if col.text.lstrip() == 'Adherence' or col.text.lstrip() == 'Agent Schedules':
+                        link = col.find_element(By.TAG_NAME, 'a').get_attribute('href')
+                        new_row.append(link)
+                    new_row.append(col.text.lstrip().rstrip())
+                new_table.append(new_row)
+            del new_table[0]
+
+            column_names = ['Blank1', 'Links', 'Report_Name', 'Blank2', 'Description', 'Start', 'End', 'Generated',
+                            'Size']
+            # Convert table to DataFrame Sort by Generation date
+            new_table = pd.DataFrame(new_table, columns=column_names)
+            new_table = new_table.drop('Blank1', axis=1)
+            new_table = new_table.drop('Blank2', axis=1)
+            new_table['Generated'] = pd.to_datetime(new_table['Generated'], format="%m/%d/%y %I:%M %p")
+            new_table = new_table.sort_values('Generated', ascending=False)
+            new_table = new_table.iloc[:self.num_reports]
+
+            # Extract 2 most recent report links from table
+            report_links = new_table['Links'].values.tolist()
+            found_reports = 0
+
+            # Iterate through rows again and click the 2 extracted links
+            print('Downloading most recent reports')
+            for row in rows:
+                cols = row.find_elements(By.TAG_NAME, 'td')
+                for col in cols:
+                    if col.text.lstrip() == 'Adherence':
+                        link = col.find_element(By.TAG_NAME, 'a')
+                        if link.get_attribute('href') in report_links:
+                            # When href links are found click on them to start download
+                            link.click()
+                            found_reports += 1
+                            sleep(1.5)
+                            # Wait for file to appear
+                            while not os.path.isfile(os.path.join(DOWNLOAD_DIR, 'report.xls')):
+                                if testing:
+                                    print('Is File Sleep')
+                                sleep(1)
+                            # Wait for .part file to disappear to verify download completed
+                            while os.path.exists(os.path.join(DOWNLOAD_DIR, 'report.xls.part')):
+                                if testing:
+                                    print('Part File Exists')
+                                sleep(1)
+                            sleep(1)
+                            # Rename the files
+                            rename_report(found_reports)
+
+            self.crawler_log['number_of_downloads'] = found_reports
         except Exception as e:
             print(e)
-
-        new_table = []
-        # Get the rows from the table
-        print('Finding most recent reports')
-        rows = today_table.find_elements(By.TAG_NAME, 'tr')
-
-        # Iterate through rows, find links and text and store them
-        for row in rows:
-            new_row = []
-            cols = row.find_elements(By.TAG_NAME, 'td')
-            for col in cols:
-                if col.text.lstrip() == 'Adherence' or col.text.lstrip() == 'Agent Schedules':
-                    link = col.find_element(By.TAG_NAME, 'a').get_attribute('href')
-                    new_row.append(link)
-                new_row.append(col.text.lstrip().rstrip())
-            new_table.append(new_row)
-        del new_table[0]
-
-        column_names = ['Blank1', 'Links', 'Report_Name', 'Blank2', 'Description', 'Start', 'End', 'Generated', 'Size']
-        # Convert table to DataFrame Sort by Generation date
-        new_table = pd.DataFrame(new_table, columns=column_names)
-        new_table = new_table.drop('Blank1', axis=1)
-        new_table = new_table.drop('Blank2', axis=1)
-        new_table['Generated'] = pd.to_datetime(new_table['Generated'], format="%m/%d/%y %I:%M %p")
-        new_table = new_table.sort_values('Generated', ascending=False)
-        new_table = new_table.iloc[:self.num_reports]
-
-        # Extract 2 most recent report links from table
-        report_links = new_table['Links'].values.tolist()
-        found_reports = 0
-
-        # Iterate through rows again and click the 2 extracted links
-        print('Downloading most recent reports')
-        for row in rows:
-            cols = row.find_elements(By.TAG_NAME, 'td')
-            for col in cols:
-                if col.text.lstrip() == 'Adherence':
-                    link = col.find_element(By.TAG_NAME, 'a')
-                    if link.get_attribute('href') in report_links:
-                        # When href links are found click on them to start download
-                        link.click()
-                        found_reports += 1
-                        sleep(1.5)
-                        # Wait for file to appear
-                        while not os.path.isfile(os.path.join(DOWNLOAD_DIR, 'report.xls')):
-                            if testing:
-                                print('Is File Sleep')
-                            sleep(1)
-                        # Wait for .part file to disappear to verify download completed
-                        while os.path.exists(os.path.join(DOWNLOAD_DIR, 'report.xls.part')):
-                            if testing:
-                                print('Part File Exists')
-                            sleep(1)
-                        sleep(1)
-                        # Rename the files
-                        rename_report(found_reports)
-
-        self.crawler_log['number_of_downloads'] = found_reports
-
-        # Shutdown the Crawler
-        self.end_crawl()
+        finally:
+            # Shutdown the Crawler
+            self.end_crawl()
 
     def end_crawl(self):
         # Close the Driver and upload last batch

@@ -3,42 +3,45 @@ import time
 import json
 import shutil
 import datetime as dt
-from threading import Thread, Lock
+from threading import Thread, Lock, Condition
 from queue import Queue
 from models import SnowflakeConsole, SnowFlakeDW, Task, Logger
 from automator_utilities import find_main_dir
 
+condition = Condition()
+
 
 class Worker(Thread):
     """Thread executing tasks from a given tasks queue"""
-    def __init__(self, tasks):
-        Thread.__init__(self)
-        self.tasks = tasks
+    def __init__(self, queue):
+        super(Worker, self).__init__()
+        self._q = queue
         self.daemon = True
         self.start()
 
     def run(self):
         while True:
-            task = self.tasks.get()
-            try:
-                task.run_task()
-            except Exception as e:
-                print(e)
-                raise e
-            finally:
-                self.tasks.task_done()
+            if not self._q.empty():
+                task = self._q.get()
+                try:
+                    task.run_task()
+                except Exception as e:
+                    print(e)
+                    raise e
+                finally:
+                    self._q.task_done()
 
 
 class ThreadPool:
     """ Pool of threads consuming tasks for a queue """
     def __init__(self, num_threads):
-        self.tasks = Queue(num_threads)
+        self._q = Queue(num_threads)
         for _ in range(num_threads):
-            Worker(self.tasks)
+            Worker(self._q)
 
     def add_task(self, task):
         """ Add a tasks to the queue """
-        self.tasks.put(task)
+        self._q.put(task)
 
     def map(self, args_list):
         """ Add a list of tasks to queue """
@@ -47,7 +50,7 @@ class ThreadPool:
 
     def wait_completion(self):
         """ Wait for completion of all the tasks in the queue """
-        self.tasks.join()
+        self._q.join()
 
 
 class Automator:
@@ -60,7 +63,7 @@ class Automator:
         self.db.set_user('JDLAURET')
         self.db.set_schema('D_POST_INSTALL')
         self.db.open_connection()
-        self.dw = SnowflakeConsole(self.db)
+        self.dw = None
         # Schema and Table containing task instructions
         self.task_table = 'T_AUTO_TASKS'
 
@@ -76,8 +79,8 @@ class Automator:
         self.query_tasks = []
 
         # Max number of threads to have running
-        self.num_threads = 5
-        self.pool = ThreadPool(self.num_threads)
+        self.max_num_threads = 5
+        self.pool = ThreadPool(self.max_num_threads)
 
     def set_database(self, new_db):
         """
@@ -93,21 +96,33 @@ class Automator:
         """
         self.task_table = table_name
 
+    def create_settings_file(self):
+        settings_file = 'settings.json'
+        try:
+            file = open(settings_file, 'r')
+        except IOError:
+            file = open(settings_file, 'w')
+        file.close()
+
     def backup_files(self):
         settings_file = 'settings.json'
         date_format = "%m/%d/%Y"
         today = dt.datetime.today()
-        backup_dir = 'file_backups'
-        storage_dir = 'file_storage'
+        backup_dir = os.path.join(os.getcwd(), 'file_backups')
+        storage_dir = os.path.join(os.getcwd(), 'file_storage')
 
+        self.create_settings_file()
         with open(settings_file) as infile:
-            settings = json.load(infile)
+            try:
+                settings = json.load(infile)
+            except:
+                settings = {}
 
         if 'storage_file_backup' not in settings.keys():
             settings['storage_file_backup'] = {}
 
         if 'last_run' not in settings['storage_file_backup'].keys():
-            settings['storage_file_backup']['last_run'] = today.strftime(date_format)
+            settings['storage_file_backup']['last_run'] = ''
 
         last_backup = settings['storage_file_backup'].get('last_run')
 
@@ -134,41 +149,36 @@ class Automator:
             if os.listdir(day_4):
                 for file in os.listdir(day_4):
                     if file != 'desktop.ini':
-                        current_path = os.path.join(day_4, file)
-                        new_path = os.path.join(day_5, os.path.basename(file))
-                        shutil.move(current_path, new_path)
+                        source = os.path.join(day_4, file)
+                        shutil.move(source, day_5)
 
             if os.listdir(day_3):
                 for file in os.listdir(day_3):
                     if file != 'desktop.ini':
-                        current_path = os.path.join(day_3, file)
-                        new_path = os.path.join(day_4, os.path.basename(file))
-                        shutil.move(current_path, new_path)
+                        source = os.path.join(day_3, file)
+                        shutil.move(source, day_4)
 
             if os.listdir(day_2):
                 for file in os.listdir(day_2):
                     if file != 'desktop.ini':
-                        current_path = os.path.join(day_2, file)
-                        new_path = os.path.join(day_3, os.path.basename(file))
-                        shutil.move(current_path, new_path)
+                        source = os.path.join(day_2, file)
+                        shutil.move(source, day_3)
 
             if os.listdir(day_1):
                 for file in os.listdir(day_1):
                     if file != 'desktop.ini':
-                        current_path = os.path.join(day_1, file)
-                        new_path = os.path.join(day_2, os.path.basename(file))
-                        shutil.move(current_path, new_path)
+                        source = os.path.join(day_1, file)
+                        shutil.move(source, day_2)
 
             if os.listdir(storage_dir):
                 for file in os.listdir(storage_dir):
                     if file != 'desktop.ini':
-                        current_path = os.path.join(storage_dir, file)
-                        new_path = os.path.join(day_1, os.path.basename(file))
-                        shutil.move(current_path, new_path)
+                        source = os.path.join(storage_dir, file)
+                        shutil.move(source, day_1)
 
             settings['storage_file_backup']['last_run'] = today.strftime(date_format)
-            with open(settings_file) as outfile:
-                json.dump(settings, outfile, indent=4)
+        with open(settings_file, 'w') as outfile:
+            json.dump(settings, outfile, indent=4)
 
     def refresh_task_data(self):
         """
@@ -184,7 +194,7 @@ class Automator:
         """
         main_dir = find_main_dir(__file__)
         for task in self.task_table_data:
-            new_task = Task(task, self.task_table_column_names, self.db, working_dir=main_dir)
+            new_task = Task(task, self.task_table_column_names, working_dir=main_dir)
             if new_task.id not in self.task_objects.keys():
                 self.task_objects[new_task.id] = new_task
 
@@ -197,58 +207,72 @@ class Automator:
             if task.data_source is not None \
                     and task.operational.lower() == 'operational':
                 if task.data_source.lower() == 'python' and task.operational:
-                    self.python_tasks.append(task)
+                    if task not in self.python_tasks:
+                        self.python_tasks.append(task)
                 if task.data_source.lower() == 'sql command':
-                    self.command_tasks.append(task)
+                    if task not in self.command_tasks:
+                        self.command_tasks.append(task)
                 if task.data_source.lower() == 'sql':
-                    self.query_tasks.append(task)
+                    if task not in self.query_tasks:
+                        self.query_tasks.append(task)
 
     def run_queue(self, list):
         """
         Add list of tasks to the Run Queue
         :param list: The list of tasks to add to the Run Queue
         """
-        self.pool.map(list)
+        for item in list:
+            self.pool.add_task(item)
         self.pool.wait_completion()
 
     def loop_sleep(self):
         """
         Sleep until the start of the next 5 minute interval
         """
-        print('Automator sleeping')
         now = dt.datetime.now()
         minutes_to_sleep = 5 - now.minute % 5
+        print('Automator 3 Restarting in {} minutes'.format(minutes_to_sleep))
         time.sleep((minutes_to_sleep * 60) - now.second)
-        print('Automator Loop Restarting')
+        now = dt.datetime.now()
+        print('Automator 3 Restarting {}'.format(now))
 
     def run_automator(self):
         # Start Program Loop
         while True:
-            # Backup Local Files
-            self.backup_files()
-            # Get Task Data
-            self.refresh_task_data()
-            # Create Task Objects
-            self.create_task_objects()
-            # Sort Tasks into Lists
-            self.organize_tasks()
+            try:
+                self.db.open_connection()
+                self.dw = SnowflakeConsole(self.db)
+                # Backup Local Files
+                self.backup_files()
+                # Get Task Data
+                self.refresh_task_data()
+                # Create Task Objects
+                self.create_task_objects()
+                # Sort Tasks into Lists
+                self.organize_tasks()
 
-            # Place Python Tasks into the Queue
-            self.run_queue(self.python_tasks)
+                # Place Python Tasks into the Queue
+                print('Running Python Tasks')
+                self.run_queue(self.python_tasks)
 
-            # Place SQL Command Tasks into the Queue
-            self.run_queue(self.command_tasks)
+                # Place SQL Command Tasks into the Queue
+                print('Running SQL Commands')
+                self.run_queue(self.command_tasks)
 
-            # Place SQL Queries into the Queue
-            self.run_queue(self.query_tasks)
+                # Place SQL Queries into the Queue
+                print('Running Query Tasks')
+                self.run_queue(self.query_tasks)
 
-            # Sleep till next 5 minute interval 12:00, 12:05, etc
-            self.loop_sleep()
+                # Sleep till next 5 minute interval 12:00, 12:05, etc
+                self.loop_sleep()
+
+            finally:
+                self.db.close_connection()
 
 
 if __name__ == '__main__':
     # Start Automator
-    print('Report Automation Tool Starting')
+    print('Automator 3 Starting')
     app = Automator()
     app.run_automator()
 

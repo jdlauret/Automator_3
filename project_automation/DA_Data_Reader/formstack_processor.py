@@ -43,7 +43,7 @@ def find_foreman():
     LEFT JOIN HR.T_EMPLOYEE MWC 
     ON wo.TECHNICIAN_BADGE_ID = MWC.BADGE_ID
     WHERE p.installation_complete > '01-JAN-16'
-    """
+        """
 
     file_data = re.sub(' +', ' ', file_data)
     file_data = file_data.replace(';', '')
@@ -164,7 +164,7 @@ class EscFormstackProcessor:
             ]
             self.qa_info.append(new_row)
         end = (dt.datetime.now() - start).seconds
-        print('QA info table build in {0} seconds'.format(end))
+        print('ESC info table build in {0} seconds'.format(end))
         print()
 
     def create_question_results(self):
@@ -199,7 +199,7 @@ class EscFormstackProcessor:
                         self.question_results.append(question_line)
 
         end = (dt.datetime.now() - start).seconds
-        print('QA Question Results table built in {0} seconds'.format(end))
+        print('ESC Question Results table built in {0} seconds'.format(end))
         print()
 
 
@@ -553,39 +553,40 @@ if __name__ == '__main__':
     db = SnowFlakeDW()
     db.set_user('JDLAURET')
     db.open_connection()
+    try:
+        run_qa_data = True
+        run_esc_data = True
+        update_tables = True
+        print('Getting Foreman Results')
+        foreman_db = find_foreman()
+        foreman_header = foreman_db[0]
+        del foreman_db[0]
 
-    run_qa_data = True
-    run_esc_data = True
-    update_tables = True
-    print('Getting Foreman Results')
-    foreman_db = find_foreman()
-    foreman_header = foreman_db[0]
-    del foreman_db[0]
+        if run_qa_data:
+            print("Opening Formstack Data Sheets and DA Sheet")
+            old_formstack_data = GSheets('1OyV1Z1OhInpV-25p6y953iX3EZZgMuHL3YNtDV9ZJuw').get_sheet_data('Sheet1')
+            new_formstack_data = GSheets('185QE7xVUzWoNhRm_Ysz5Fld1f9-Nm0EaTyiUeP4TyCk').get_sheet_data('Sheet1')
+            db_qa_data = GSheets('1aa1BS1UVUCKJJ12XqulmDaMr7oLjsLOf62kBn0mX7zc').get_sheet_data('Quality Data')
+            db_validation_data = GSheets('1aa1BS1UVUCKJJ12XqulmDaMr7oLjsLOf62kBn0mX7zc').get_sheet_data("Validation Import")
 
-    if run_qa_data:
-        print("Opening Formstack Data Sheets and DA Sheet")
-        old_formstack_data = GSheets('1OyV1Z1OhInpV-25p6y953iX3EZZgMuHL3YNtDV9ZJuw').get_sheet_data('Sheet1')
-        new_formstack_data = GSheets('185QE7xVUzWoNhRm_Ysz5Fld1f9-Nm0EaTyiUeP4TyCk').get_sheet_data('Sheet1')
-        db_qa_data = GSheets('1aa1BS1UVUCKJJ12XqulmDaMr7oLjsLOf62kBn0mX7zc').get_sheet_data('Quality Data')
-        db_validation_data = GSheets('1aa1BS1UVUCKJJ12XqulmDaMr7oLjsLOf62kBn0mX7zc').get_sheet_data("Validation Import")
+            print('Sheets opened and values stored')
 
-        print('Sheets opened and values stored')
+            old_formstack_header = old_formstack_data[0]
+            new_formstack_header = new_formstack_data[0]
+            db_qa_header = db_qa_data[1]
+            db_validation_header = db_validation_data[3]
 
-        old_formstack_header = old_formstack_data[0]
-        new_formstack_header = new_formstack_data[0]
-        db_qa_header = db_qa_data[1]
-        db_validation_header = db_validation_data[3]
+            del db_qa_data[0:1]
+            del db_validation_data[0:3]
 
-        del db_qa_data[0:1]
-        del db_validation_data[0:3]
+            if old_formstack_data[0] == old_formstack_header:
+                del old_formstack_data[0]
+            if new_formstack_data[0] == new_formstack_header:
+                del new_formstack_data[0]
+            qa_data_handler()
 
-        if old_formstack_data[0] == old_formstack_header:
-            del old_formstack_data[0]
-        if new_formstack_data[0] == new_formstack_header:
-            del new_formstack_data[0]
-        qa_data_handler()
+        if run_esc_data:
+            esc_data_handler()
 
-    if run_esc_data:
-        esc_data_handler()
-
-    db.close_connection()
+    finally:
+        db.close_connection()

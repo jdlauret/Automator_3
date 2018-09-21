@@ -64,6 +64,7 @@ with open(get_file(watson_data_file, 'data')) as watson_file,\
 
 query_count = reviewed_data['metrics']['query_count']
 
+
 def save_json(file, obj):
     """
         Saves an obj to a json

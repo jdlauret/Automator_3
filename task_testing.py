@@ -1,3 +1,4 @@
+import json
 from queue import Queue
 from models import Task, SnowFlakeDW, SnowflakeConsole
 from automator_utilities import find_main_dir
@@ -42,6 +43,26 @@ class TaskTester:
             if task.id not in self.task_objects.keys():
                 self.task_objects[task.id] = task
 
+    def create_settings_file(self):
+        settings_file = 'settings.json'
+        try:
+            file = open(settings_file, 'r')
+        except IOError:
+            file = open(settings_file, 'w')
+        file.close()
+
+        with open(settings_file) as infile:
+            try:
+                settings = json.load(infile)
+            except:
+                settings = {}
+
+        if 'storage_file_backup' not in settings.keys():
+            settings['storage_file_backup'] = {}
+
+        with open(settings_file, 'w') as outfile:
+            json.dumps(settings, outfile, indent=4, sort_keys=True)
+
     def organize_tasks(self):
         if self.test_only:
             for key, task in self.task_objects.items():
@@ -83,6 +104,7 @@ class TaskTester:
     def run(self):
         self.get_tasks()
         testing = 'Testing' if self.test_only else 'Automated'
+        self.create_settings_file()
         self.setup_task_dict(testing)
         self.organize_tasks()
         self.setup_queue(self.python_tasks)
@@ -103,18 +125,21 @@ if __name__ == '__main__':
     db = SnowFlakeDW()
     db.set_user('JDLAURET')
     db.open_connection()
-    specific_task_id = 0
-
+    specific_task_id = 511
+    run_as_test = False
     app = TaskTester(db)
     try:
         if run_all_tasks_marked_for_testing:
             app.run()
         elif specific_task_id:
+            if not run_as_test:
+                app.test_only = False
             app.run_specific_task(specific_task_id)
         else:
             app.test_only = False
             app.run()
     except Exception as e:
         print(e)
+        raise e
     finally:
         db.close_connection()

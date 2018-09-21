@@ -400,5 +400,163 @@
         "cleared_data": true,
         "actual_table_updated": true,
         "scheduled_table_update": true
+    },
+    "2018-09-12": {
+        "crawler": {
+            "login": true,
+            "number_of_downloads": 3
+        },
+        "converted_files": 3,
+        "report - 1.xlsx": {
+            "file_name": "report - 1.xlsx",
+            "row_count": 19955
+        },
+        "report - 2.xlsx": {
+            "file_name": "report - 2.xlsx",
+            "row_count": 21137
+        },
+        "report - 3.xlsx": {
+            "file_name": "report - 3.xlsx",
+            "row_count": 21076
+        },
+        "cleared_data": true,
+        "actual_table_updated": true,
+        "scheduled_table_update": true
+    },
+    "2018-09-14": {
+        "crawler": {
+            "login": true,
+            "number_of_downloads": 3
+        },
+        "converted_files": 3,
+        "report - 1.xlsx": {
+            "file_name": "report - 1.xlsx",
+            "row_count": 25967
+        },
+        "report - 2.xlsx": {
+            "file_name": "report - 2.xlsx",
+            "row_count": 25192
+        },
+        "report - 3.xlsx": {
+            "file_name": "report - 3.xlsx",
+            "row_count": 11225
+        },
+        "cleared_data": true,
+        "actual_table_updated": true,
+        "scheduled_table_update": true
+    },
+    "2018-09-17": {
+        "crawler": {
+            "login": true,
+            "number_of_downloads": 3
+        },
+        "converted_files": 3,
+        "report - 1.xlsx": {
+            "file_name": "report - 1.xlsx",
+            "row_count": 20746
+        },
+        "report - 2.xlsx": {
+            "file_name": "report - 2.xlsx",
+            "row_count": 21850
+        },
+        "report - 3.xlsx": {
+            "file_name": "report - 3.xlsx",
+            "row_count": 20607
+        },
+        "cleared_data": true,
+        "actual_table_updated": true,
+        "scheduled_table_update": true
+    },
+    "2018-09-18": {
+        "crawler": {
+            "login": true,
+            "number_of_downloads": 3
+        },
+        "converted_files": 3,
+        "report - 1.xlsx": {
+            "file_name": "report - 1.xlsx",
+            "row_count": 23982
+        },
+        "report - 2.xlsx": {
+            "file_name": "report - 2.xlsx",
+            "row_count": 22462
+        },
+        "report - 3.xlsx": {
+            "file_name": "report - 3.xlsx",
+            "row_count": 21114
+        },
+        "cleared_data": true,
+        "actual_table_updated": true,
+        "scheduled_table_update": true
+    },
+    "2018-09-19": {
+        "crawler": {
+            "login": true,
+            "number_of_downloads": 3
+        },
+        "converted_files": 4,
+        "report - 1.xlsx": {
+            "file_name": "report - 1.xlsx",
+            "row_count": 20259
+        },
+        "report - 2.xlsx": {
+            "file_name": "report - 2.xlsx",
+            "row_count": 24585
+        },
+        "report - 3.xlsx": {
+            "file_name": "report - 3.xlsx",
+            "row_count": 22239
+        },
+        "report(1).xlsx": {
+            "file_name": "report(1).xlsx",
+            "row_count": 20259
+        },
+        "cleared_data": true,
+        "actual_table_updated": true,
+        "scheduled_table_update": true
+    },
+    "2018-09-20": {
+        "crawler": {
+            "login": true,
+            "number_of_downloads": 3
+        },
+        "converted_files": 3,
+        "report - 1.xlsx": {
+            "file_name": "report - 1.xlsx",
+            "row_count": 30100
+        },
+        "report - 2.xlsx": {
+            "file_name": "report - 2.xlsx",
+            "row_count": 22614
+        },
+        "report - 3.xlsx": {
+            "file_name": "report - 3.xlsx",
+            "row_count": 14933
+        },
+        "cleared_data": true,
+        "actual_table_updated": true,
+        "scheduled_table_update": true
+    },
+    "2018-09-21": {
+        "crawler": {
+            "login": true,
+            "number_of_downloads": 3
+        },
+        "converted_files": 3,
+        "report - 1.xlsx": {
+            "file_name": "report - 1.xlsx",
+            "row_count": 26288
+        },
+        "report - 2.xlsx": {
+            "file_name": "report - 2.xlsx",
+            "row_count": 26121
+        },
+        "report - 3.xlsx": {
+            "file_name": "report - 3.xlsx",
+            "row_count": 14948
+        },
+        "cleared_data": true,
+        "actual_table_updated": true,
+        "scheduled_table_update": true
     }
 }
