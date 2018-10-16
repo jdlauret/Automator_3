@@ -288,7 +288,7 @@ if __name__ == '__main__':
     update_tables = True
     words_reset = False
 
-    NUM_CORE = 10
+    NUM_CORE = 3
     MAIN_DIR = find_main_dir()
     TEMP_FOLDER = os.path.join(MAIN_DIR, 'temp_data')
     DATA_FOLDER = os.path.join(MAIN_DIR, 'data')

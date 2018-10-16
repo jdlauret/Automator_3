@@ -39,7 +39,7 @@ class TaskTester:
     def setup_task_dict(self, run_type):
         main_dir = find_main_dir(__file__)
         for row in self.task_table_data:
-            task = Task(row, self.task_table_column_names, self.db, run_type=run_type, working_dir=main_dir)
+            task = Task(row, self.task_table_column_names, run_type=run_type, working_dir=main_dir)
             if task.id not in self.task_objects.keys():
                 self.task_objects[task.id] = task
 
@@ -61,7 +61,7 @@ class TaskTester:
             settings['storage_file_backup'] = {}
 
         with open(settings_file, 'w') as outfile:
-            json.dumps(settings, outfile, indent=4, sort_keys=True)
+            json.dump(settings, outfile, indent=4, sort_keys=True)
 
     def organize_tasks(self):
         if self.test_only:
@@ -90,7 +90,7 @@ class TaskTester:
 
     def run_items_in_queue(self):
         while not self.run_queue.empty():
-            task = self.run_queue.get()
+            task = self.run_queue.get()[1]
             task.run_task()
             self.run_queue.task_done()
 
@@ -125,8 +125,8 @@ if __name__ == '__main__':
     db = SnowFlakeDW()
     db.set_user('JDLAURET')
     db.open_connection()
-    specific_task_id = 511
-    run_as_test = False
+    specific_task_id = 515
+    run_as_test = True
     app = TaskTester(db)
     try:
         if run_all_tasks_marked_for_testing:

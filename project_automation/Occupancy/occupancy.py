@@ -141,7 +141,8 @@ class PrimaryCrawler:
 
                 # Click Run
                 self.DRIVER.find_element_by_id('ctl00_ctl00_ctl00_BaseContent_Content_ManagerContent_'
-                                               'ReportTemplateTabContainer_ReportTemplateDetailsPanel_btnRunReport_ShadowButton').click()
+                                               'ReportTemplateTabContainer_ReportTemplateDetailsPanel_'
+                                               'btnRunReport_ShadowButton').click()
 
                 # Click Download Button
                 while not os.path.isfile(os.path.join(DOWNLOAD_DIR, 'Handle Time Report.csv')):
@@ -263,7 +264,8 @@ def generate_json(file_path, today):
 
 if __name__ == '__main__':
     LOGIN_URL = 'https://login.incontact.com/inContact/Login.aspx?ReturnUrl=%2f'
-    REPORT_URL = 'https://home-c20.incontact.com/inContact/Manage/Reports/CustomReporting/ReportTemplateDetails.aspx?Id=7805'
+    REPORT_URL = 'https://home-c20.incontact.com/inContact/Manage/Reports/' \
+                 'CustomReporting/ReportTemplateDetails.aspx?Id=7805'
 
     TODAY = dt.datetime.now()
 

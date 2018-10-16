@@ -1,8 +1,9 @@
 import datetime as dt
-import threading
 import os
 import re
 import sys
+import threading
+
 from models import SnowFlakeDW, SnowflakeConsole, GSheets
 
 
@@ -22,28 +23,28 @@ def find_main_dir():
 
 def find_foreman():
     file_data = """
-    SELECT 
-    p.PROJECT_ID
-    ,to_number(regexp_replace(p.service_number, '[^[:digit:]]', '')) AS AR
-    ,p.project_name AS PROJECT
-    ,NVL(p.roc_name, p.sales_office) AS OFFICE
-    ,DATE_TRUNC(day, p.installation_complete) AS INSTALL_COMPLETE
-    ,CASE 
-    WHEN wo.technician_name IS NOT NULL 
-    THEN wo.technician_name || ' (' || wo.technician_badge_id || ')' 
-    END AS EMPLOYEE,
-    MWC.SUPERVISOR_NAME_1 SUPERVISOR,
-    MWC.BUSINESS_TITLE JOB_TITLE,
-    MWC.COST_CENTER DEPARTMENT
-    FROM   rpt.t_project p
-    LEFT   JOIN rpt.T_PROJECT_EXT cdm
-    ON     cdm.project_id = p.project_id
-    LEFT   JOIN rpt.t_workorder wo
-    ON     wo.workorder_id = cdm.install_first_work_order_id
-    LEFT JOIN HR.T_EMPLOYEE MWC 
-    ON wo.TECHNICIAN_BADGE_ID = MWC.BADGE_ID
-    WHERE p.installation_complete > '01-JAN-16'
-        """
+    SELECT p.PROJECT_ID,
+       to_number(regexp_replace(p.service_number, '[^[:digit:]]', '')) AS AR,
+       p.project_name                                                  AS PROJECT,
+       NVL(p.roc_name, p.sales_office)                                 AS OFFICE,
+       DATE_TRUNC(day, p.installation_complete)                        AS INSTALL_COMPLETE,
+       CASE
+         WHEN E.name IS NOT NULL
+                 THEN E.name
+           END                                                         AS EMPLOYEE,
+       HR.SUPERVISOR_NAME_1                                            AS SUPERVISOR,
+       HR.BUSINESS_TITLE                                               AS JOB_TITLE,
+       HR.COST_CENTER                                                  AS DEPARTMENT
+    FROM rpt.t_project p
+           LEFT JOIN rpt.T_PROJECT_EXT cdm ON cdm.project_id = p.project_id
+           left join RPT.V_SF_Solar_Team_Member M on M.Solar_Project = P.Project_ID
+           join RPT.V_SF_Solar_Team_Role R on R.ID = M.Solar_Team_Role
+           join RPT.V_SF_Vivint_Employee E on E.ID = M.Vivint_Employee
+           left join HR.T_EMPLOYEE HR ON HR.badge_id = E.employee_id
+    WHERE R.Name like '%Foreman%'
+      and M.status = 'Active'
+      and p.installation_complete > '01-JAN-16'
+    """
 
     file_data = re.sub(' +', ' ', file_data)
     file_data = file_data.replace(';', '')
@@ -295,6 +296,7 @@ class QaFormstackProcessor:
                 'Duration': 'Duration',
             },
         }
+        self.project_ids = {}
         self.question_processing()
 
     def question_processing(self):
@@ -366,6 +368,8 @@ class QaFormstackProcessor:
                 self.department = account[foreman_header.index('DEPARTMENT')]
                 self.supervisor = account[foreman_header.index('SUPERVISOR')]
                 self.office = account[foreman_header.index('OFFICE')]
+                self.project_id = account[foreman_header.index('PROJECT_ID')]
+                self.project_ids[str(self.ar)] = self.project_id
                 break
 
     def da_info(self):
@@ -441,11 +445,19 @@ class QaFormstackProcessor:
                 inspection_type,
                 self.office,
                 self.version,
+                self.project_id
             ]
             self.qa_info.append(new_row)
         end = (dt.datetime.now() - start).seconds
         print('QA info table build in {0} seconds'.format(end))
         print()
+
+    def get_project_id(self, ar):
+        query = "SELECT TP.PROJECT_ID FROM RPT.T_SERVICE TP WHERE TP.SERVICE_NUMBER = '{ar}'".format(ar=str(ar))
+        dw = SnowflakeConsole(db)
+        dw.execute_query(query)
+        if dw.query_results:
+            return dw.query_results[0][0]
 
     def create_question_results(self):
         print('Creating QA Question Results Table from {0} Formstack data'.format(self.formstack.title()))
@@ -455,7 +467,10 @@ class QaFormstackProcessor:
                 ar = line[self.header.index(self.column_dict[self.formstack]['AR'])]
                 results = line[self.first_question_col:self.last_question_col]
                 survey_type = line[self.header.index(self.column_dict[self.formstack]['Survey Type'])]
-
+                project_id = self.project_ids.get(str(ar))
+                if not project_id:
+                    project_id = self.get_project_id(ar)
+                    self.project_ids[str(ar)] = project_id
                 for i, result in enumerate(results):
                     question = self.questions_header[i]
                     if result != 'Pass' \
@@ -467,7 +482,10 @@ class QaFormstackProcessor:
                                   and self.formstack == 'new')
                                  or self.formstack == 'old'):
 
-                        question_line = [ar, question, result, None, None, None, None, None, None, survey_type]
+                        question_line = [ar, question, result,
+                                         None, None, None,
+                                         None, None, None,
+                                         survey_type, project_id]
 
                         if result == 1:
                             question_line[self.results_header.index('Level 1')] = 1
@@ -567,7 +585,8 @@ if __name__ == '__main__':
             old_formstack_data = GSheets('1OyV1Z1OhInpV-25p6y953iX3EZZgMuHL3YNtDV9ZJuw').get_sheet_data('Sheet1')
             new_formstack_data = GSheets('185QE7xVUzWoNhRm_Ysz5Fld1f9-Nm0EaTyiUeP4TyCk').get_sheet_data('Sheet1')
             db_qa_data = GSheets('1aa1BS1UVUCKJJ12XqulmDaMr7oLjsLOf62kBn0mX7zc').get_sheet_data('Quality Data')
-            db_validation_data = GSheets('1aa1BS1UVUCKJJ12XqulmDaMr7oLjsLOf62kBn0mX7zc').get_sheet_data("Validation Import")
+            db_validation_data = GSheets('1aa1BS1UVUCKJJ12XqulmDaMr7oLjsLOf62kBn0mX7zc').get_sheet_data(
+                "Validation Import")
 
             print('Sheets opened and values stored')
 

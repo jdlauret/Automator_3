@@ -558,5 +558,423 @@
         "cleared_data": true,
         "actual_table_updated": true,
         "scheduled_table_update": true
+    },
+    "2018-09-22": {
+        "crawler": {
+            "login": true,
+            "number_of_downloads": 3
+        },
+        "converted_files": 3,
+        "report - 1.xlsx": {
+            "file_name": "report - 1.xlsx",
+            "row_count": 31782
+        },
+        "report - 2.xlsx": {
+            "file_name": "report - 2.xlsx",
+            "row_count": 21155
+        },
+        "report - 3.xlsx": {
+            "file_name": "report - 3.xlsx",
+            "row_count": 14939
+        },
+        "cleared_data": true,
+        "actual_table_updated": true,
+        "scheduled_table_update": true
+    },
+    "2018-09-23": {
+        "crawler": {
+            "login": true,
+            "number_of_downloads": 3
+        },
+        "converted_files": 3,
+        "report - 1.xlsx": {
+            "file_name": "report - 1.xlsx",
+            "row_count": 28090
+        },
+        "report - 2.xlsx": {
+            "file_name": "report - 2.xlsx",
+            "row_count": 21745
+        },
+        "report - 3.xlsx": {
+            "file_name": "report - 3.xlsx",
+            "row_count": 18635
+        },
+        "cleared_data": true,
+        "actual_table_updated": true,
+        "scheduled_table_update": true
+    },
+    "2018-09-24": {
+        "crawler": {
+            "login": true,
+            "number_of_downloads": 3
+        },
+        "converted_files": 3,
+        "report - 1.xlsx": {
+            "file_name": "report - 1.xlsx",
+            "row_count": 24143
+        },
+        "report - 2.xlsx": {
+            "file_name": "report - 2.xlsx",
+            "row_count": 22582
+        },
+        "report - 3.xlsx": {
+            "file_name": "report - 3.xlsx",
+            "row_count": 21826
+        },
+        "cleared_data": true,
+        "actual_table_updated": true,
+        "scheduled_table_update": true
+    },
+    "2018-09-25": {
+        "crawler": {
+            "login": true,
+            "number_of_downloads": 3
+        },
+        "converted_files": 3,
+        "report - 1.xlsx": {
+            "file_name": "report - 1.xlsx",
+            "row_count": 24220
+        },
+        "report - 2.xlsx": {
+            "file_name": "report - 2.xlsx",
+            "row_count": 23094
+        },
+        "report - 3.xlsx": {
+            "file_name": "report - 3.xlsx",
+            "row_count": 22172
+        },
+        "cleared_data": true,
+        "actual_table_updated": true,
+        "scheduled_table_update": true
+    },
+    "2018-09-26": {
+        "crawler": {
+            "login": true,
+            "number_of_downloads": 3
+        },
+        "converted_files": 3,
+        "report - 1.xlsx": {
+            "file_name": "report - 1.xlsx",
+            "row_count": 22539
+        },
+        "report - 2.xlsx": {
+            "file_name": "report - 2.xlsx",
+            "row_count": 25462
+        },
+        "report - 3.xlsx": {
+            "file_name": "report - 3.xlsx",
+            "row_count": 20575
+        },
+        "cleared_data": true,
+        "actual_table_updated": true,
+        "scheduled_table_update": true
+    },
+    "2018-09-27": {
+        "crawler": {
+            "login": true,
+            "number_of_downloads": 3
+        },
+        "converted_files": 3,
+        "report - 1.xlsx": {
+            "file_name": "report - 1.xlsx",
+            "row_count": 31042
+        },
+        "report - 2.xlsx": {
+            "file_name": "report - 2.xlsx",
+            "row_count": 23125
+        },
+        "report - 3.xlsx": {
+            "file_name": "report - 3.xlsx",
+            "row_count": 15340
+        },
+        "cleared_data": true,
+        "actual_table_updated": true,
+        "scheduled_table_update": true
+    },
+    "2018-09-28": {
+        "crawler": {
+            "login": true,
+            "number_of_downloads": 3
+        },
+        "converted_files": 3,
+        "report - 1.xlsx": {
+            "file_name": "report - 1.xlsx",
+            "row_count": 27218
+        },
+        "report - 2.xlsx": {
+            "file_name": "report - 2.xlsx",
+            "row_count": 26870
+        },
+        "report - 3.xlsx": {
+            "file_name": "report - 3.xlsx",
+            "row_count": 15716
+        },
+        "cleared_data": true,
+        "actual_table_updated": true,
+        "scheduled_table_update": true
+    },
+    "2018-10-01": {
+        "crawler": {
+            "login": true,
+            "number_of_downloads": 3
+        },
+        "converted_files": 3,
+        "report - 1.xlsx": {
+            "file_name": "report - 1.xlsx",
+            "row_count": 25203
+        },
+        "report - 2.xlsx": {
+            "file_name": "report - 2.xlsx",
+            "row_count": 23337
+        },
+        "report - 3.xlsx": {
+            "file_name": "report - 3.xlsx",
+            "row_count": 22391
+        },
+        "cleared_data": true,
+        "actual_table_updated": true,
+        "scheduled_table_update": true
+    },
+    "2018-10-02": {
+        "crawler": {
+            "login": true,
+            "number_of_downloads": 3
+        },
+        "converted_files": 3,
+        "report - 1.xlsx": {
+            "file_name": "report - 1.xlsx",
+            "row_count": 23264
+        },
+        "report - 2.xlsx": {
+            "file_name": "report - 2.xlsx",
+            "row_count": 24976
+        },
+        "report - 3.xlsx": {
+            "file_name": "report - 3.xlsx",
+            "row_count": 22680
+        },
+        "cleared_data": true,
+        "actual_table_updated": true,
+        "scheduled_table_update": true
+    },
+    "2018-10-03": {
+        "crawler": {
+            "login": true,
+            "number_of_downloads": 3
+        },
+        "converted_files": 3,
+        "report - 1.xlsx": {
+            "file_name": "report - 1.xlsx",
+            "row_count": 26465
+        },
+        "report - 2.xlsx": {
+            "file_name": "report - 2.xlsx",
+            "row_count": 23636
+        },
+        "report - 3.xlsx": {
+            "file_name": "report - 3.xlsx",
+            "row_count": 21715
+        },
+        "cleared_data": true,
+        "actual_table_updated": true,
+        "scheduled_table_update": true
+    },
+    "2018-10-04": {
+        "crawler": {
+            "login": true,
+            "number_of_downloads": 3
+        },
+        "converted_files": 3,
+        "report - 1.xlsx": {
+            "file_name": "report - 1.xlsx",
+            "row_count": 32060
+        },
+        "report - 2.xlsx": {
+            "file_name": "report - 2.xlsx",
+            "row_count": 24202
+        },
+        "report - 3.xlsx": {
+            "file_name": "report - 3.xlsx",
+            "row_count": 16112
+        },
+        "cleared_data": true,
+        "actual_table_updated": true,
+        "scheduled_table_update": true
+    },
+    "2018-10-05": {
+        "crawler": {
+            "login": true,
+            "number_of_downloads": 3
+        },
+        "converted_files": 3,
+        "report - 1.xlsx": {
+            "file_name": "report - 1.xlsx",
+            "row_count": 28415
+        },
+        "report - 2.xlsx": {
+            "file_name": "report - 2.xlsx",
+            "row_count": 27859
+        },
+        "report - 3.xlsx": {
+            "file_name": "report - 3.xlsx",
+            "row_count": 16471
+        },
+        "cleared_data": true,
+        "actual_table_updated": true,
+        "scheduled_table_update": true
+    },
+    "2018-10-08": {
+        "crawler": {
+            "login": true,
+            "number_of_downloads": 3
+        },
+        "converted_files": 3,
+        "report - 1.xlsx": {
+            "file_name": "report - 1.xlsx",
+            "row_count": 23460
+        },
+        "report - 2.xlsx": {
+            "file_name": "report - 2.xlsx",
+            "row_count": 26223
+        },
+        "report - 3.xlsx": {
+            "file_name": "report - 3.xlsx",
+            "row_count": 23689
+        },
+        "cleared_data": true,
+        "actual_table_updated": true,
+        "scheduled_table_update": true
+    },
+    "2018-10-09": {
+        "crawler": {
+            "login": true,
+            "number_of_downloads": 3
+        },
+        "converted_files": 3,
+        "report - 1.xlsx": {
+            "file_name": "report - 1.xlsx",
+            "row_count": 25599
+        },
+        "report - 2.xlsx": {
+            "file_name": "report - 2.xlsx",
+            "row_count": 23893
+        },
+        "report - 3.xlsx": {
+            "file_name": "report - 3.xlsx",
+            "row_count": 23750
+        },
+        "cleared_data": true,
+        "actual_table_updated": true,
+        "scheduled_table_update": true
+    },
+    "2018-10-10": {
+        "crawler": {
+            "login": true,
+            "number_of_downloads": 3
+        },
+        "converted_files": 3,
+        "report - 1.xlsx": {
+            "file_name": "report - 1.xlsx",
+            "row_count": 27619
+        },
+        "report - 2.xlsx": {
+            "file_name": "report - 2.xlsx",
+            "row_count": 23541
+        },
+        "report - 3.xlsx": {
+            "file_name": "report - 3.xlsx",
+            "row_count": 22670
+        },
+        "cleared_data": true,
+        "actual_table_updated": true,
+        "scheduled_table_update": true
+    },
+    "2018-10-11": {
+        "crawler": {
+            "login": true,
+            "number_of_downloads": 3
+        },
+        "converted_files": 3,
+        "report - 1.xlsx": {
+            "file_name": "report - 1.xlsx",
+            "row_count": 33471
+        },
+        "report - 2.xlsx": {
+            "file_name": "report - 2.xlsx",
+            "row_count": 16781
+        },
+        "report - 3.xlsx": {
+            "file_name": "report - 3.xlsx",
+            "row_count": 23745
+        },
+        "cleared_data": true,
+        "actual_table_updated": true,
+        "scheduled_table_update": true
+    },
+    "2018-10-12": {
+        "crawler": {
+            "login": true,
+            "number_of_downloads": 3
+        },
+        "converted_files": 3,
+        "report - 1.xlsx": {
+            "file_name": "report - 1.xlsx",
+            "row_count": 17083
+        },
+        "report - 2.xlsx": {
+            "file_name": "report - 2.xlsx",
+            "row_count": 29648
+        },
+        "report - 3.xlsx": {
+            "file_name": "report - 3.xlsx",
+            "row_count": 28048
+        },
+        "cleared_data": true,
+        "actual_table_updated": true,
+        "scheduled_table_update": true
+    },
+    "2018-10-15": {
+        "crawler": {
+            "login": true,
+            "number_of_downloads": 3
+        },
+        "converted_files": 3,
+        "report - 1.xlsx": {
+            "file_name": "report - 1.xlsx",
+            "row_count": 27582
+        },
+        "report - 2.xlsx": {
+            "file_name": "report - 2.xlsx",
+            "row_count": 23712
+        },
+        "report - 3.xlsx": {
+            "file_name": "report - 3.xlsx",
+            "row_count": 23542
+        },
+        "cleared_data": true,
+        "actual_table_updated": true,
+        "scheduled_table_update": true
+    },
+    "2018-10-16": {
+        "crawler": {
+            "login": true,
+            "number_of_downloads": 3
+        },
+        "converted_files": 3,
+        "report - 1.xlsx": {
+            "file_name": "report - 1.xlsx",
+            "row_count": 27568
+        },
+        "report - 2.xlsx": {
+            "file_name": "report - 2.xlsx",
+            "row_count": 23819
+        },
+        "report - 3.xlsx": {
+            "file_name": "report - 3.xlsx",
+            "row_count": 23968
+        },
+        "cleared_data": true,
+        "actual_table_updated": true,
+        "scheduled_table_update": true
     }
 }
