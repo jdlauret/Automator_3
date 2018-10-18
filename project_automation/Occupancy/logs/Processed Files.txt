@@ -24,3 +24,5 @@
 2018-10-13 Handle Time Report.CSV
 2018-10-15 Handle Time Report.CSV
 2018-10-16 Handle Time Report.CSV
+2018-10-17 Handle Time Report.CSV
+2018-10-18 Handle Time Report.CSV

@@ -280,7 +280,7 @@ class PrimaryCrawler:
     def end_crawl(self):
         # Close the Driver
         print('Crawler Tasks Complete')
-        self.DRIVER.close()
+        self.DRIVER.quit()
 
 
 class CsvProcessor:

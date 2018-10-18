@@ -162,9 +162,10 @@ class PrimaryCrawler:
 
             # Click Download Button
             self.DRIVER.find_element_by_id('ctl00_cphBody_btnIndividualSystems_CSV').click()
-            file_name = 'IndvSystemsProductionPreliminary ' + year_string + ' ' + quarter_string + '.csv'
-
-            while not os.path.isfile(os.path.join(DOWNLOAD_DIR, file_name)):
+            file_name_1 = 'IndvSystemsProductionPreliminary ' + year_string + ' ' + quarter_string + '.csv'
+            file_name_2 = 'IndvSystemsProductionFinal ' + year_string + ' ' + quarter_string + '.csv'
+            while not os.path.isfile(os.path.join(DOWNLOAD_DIR, file_name_1)) \
+                    and not os.path.isfile(os.path.join(DOWNLOAD_DIR, file_name_2)):
                 if self.testing:
                     print('sleeping .1')
                 sleep(.1)
@@ -184,7 +185,7 @@ class PrimaryCrawler:
     def end_crawl(self):
         # Close the Driver
         print('Crawler Tasks Complete')
-        self.DRIVER.close()
+        self.DRIVER.quit()
 
 
 class FileProcessor:
@@ -224,7 +225,11 @@ class FileProcessor:
         quarter = file_name[2].replace('.csv', '')
         year = file_name[1]
         data = pd.read_csv(file, skiprows=[1, 2], header=1)
-        data = data[self.columns_to_keep]
+        if 'final' in os.path.basename(file).lower():
+            columns_to_keep = [x.replace('1', '') for x in self.columns_to_keep]
+        else:
+            columns_to_keep = self.columns_to_keep
+        data = data[columns_to_keep]
         data['Quarter'] = quarter + '-' + year
         data = data.values.tolist()
         self.data = self.data + data

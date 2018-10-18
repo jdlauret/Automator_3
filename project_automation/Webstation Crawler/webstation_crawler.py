@@ -261,7 +261,7 @@ class PrimaryCrawler:
     def end_crawl(self):
         # Close the Driver and upload last batch
         print('Crawler Tasks Complete')
-        self.DRIVER.close()
+        self.DRIVER.quit()
 
 
 class ProcessDownloads:

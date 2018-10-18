@@ -48,6 +48,69 @@ class TaskThreadPool:
         self._q.join()
 
 
+class PriorityOrganizer:
+    def __init__(self):
+        self.task_list = []
+        self.task_dict = {}
+        self.priority_queue = {}
+
+    def _get_task_list(self):
+        query = '''
+        SELECT ID, DEPENDENCIES
+        FROM D_POST_INSTALL.T_AUTO_TASKS
+        '''
+        db = SnowFlakeDW()
+        db.set_user('JDLAURET')
+
+        dw = SnowflakeConsole(db)
+
+        db.open_connection()
+        try:
+            dw.execute_query(query)
+        finally:
+            db.close_connection()
+
+        self.task_list = dw.query_results
+
+    def _create_task_dict(self):
+        for row in self.task_list:
+            id, dependents = row[0], row[1]
+            if dependents:
+                dependents = dependents.split(',')
+
+            self.task_dict[id] = {
+                'id': id,
+                'dependents': dependents,
+            }
+
+    def _zero_priorities(self):
+        for key in self.task_dict.keys():
+            task_data = self.task_dict[key]
+            dependents = task_data.get('dependents')
+            if not dependents:
+                self.priority_queue[task_data.get('id')] = 0
+
+    def _set_priority(self):
+        for i in range(2):
+            for key in self.task_dict.keys():
+                task_data = self.task_dict[key]
+                dependents = task_data.get('dependents')
+                if dependents:
+                    for dependent in dependents:
+                        dependent_id = int(dependent)
+                        task_id = task_data.get('id')
+                        if not self.priority_queue.get(task_id):
+                            self.priority_queue[task_id] = self.priority_queue[dependent_id] + 1
+                        elif self.priority_queue.get(task_id) <= self.priority_queue[dependent_id]:
+                            self.priority_queue[task_id] = self.priority_queue[dependent_id] + 1
+
+    def find_priorities(self):
+        self._get_task_list()
+        self._create_task_dict()
+        self._zero_priorities()
+        self._set_priority()
+
+
 class Automator:
     def __init__(self):
         """
@@ -113,6 +176,11 @@ class Automator:
 
     def _update_last_backup(self):
         query = 'UPDATE {table} SET LAST_BACKUP = current_timestamp::timestamp_ntz'.format(table=self.meta_data_table)
+        self.dw.execute_sql_command(query)
+
+    def _update_last_priority_update(self):
+        query = 'UPDATE {table} SET LAST_PRIORITY_UPDATE = current_timestamp::timestamp_ntz'\
+            .format(table=self.meta_data_table)
         self.dw.execute_sql_command(query)
 
     def backup_files(self):
@@ -210,6 +278,27 @@ class Automator:
             if new_task.id not in self.task_objects.keys():
                 self.task_objects[new_task.id] = new_task
 
+    def check_priorities(self):
+        today = dt.datetime.today()
+        last_priority_update = self.meta_data.get('last_priority_update')
+
+        if not last_priority_update:
+            last_priority_update = today - dt.timedelta(hours=1)
+        hours_since_last_update = int((today - last_priority_update).seconds/60/60)
+
+        missing_priority = False
+        for task in self.task_objects.values():
+            if not getattr(task, 'priority', None):
+                missing_priority = True
+                break
+        if missing_priority or hours_since_last_update >= 1:
+            priorities = PriorityOrganizer()
+            priorities.find_priorities()
+            for task in self.task_objects.values():
+                priority = priorities.priority_queue.get(int(task.id))
+                setattr(task, 'priority', priority)
+            self._update_last_priority_update()
+
     def organize_tasks(self):
         """
         Sort tasks into 3 list
@@ -262,6 +351,8 @@ class Automator:
                 self.refresh_task_data()
                 #  Create Task Objects
                 self.create_task_objects()
+                #  Create Task Priorities
+                self.check_priorities()
                 #  Sort Tasks into Lists
                 self.organize_tasks()
                 #  Place Python Tasks into the Queue

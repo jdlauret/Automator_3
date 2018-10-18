@@ -168,3 +168,6 @@ VSLR_note_rpt_20181009.csv
 VSLR_note_rpt_20181010.csv
 VSLR_note_rpt_20181011.csv
 VSLR_note_rpt_20181012.csv
+VSLR_note_rpt_20181015.csv
+VSLR_note_rpt_20181016.csv
+VSLR_note_rpt_20181017.csv
