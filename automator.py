@@ -1,9 +1,18 @@
+__author__ = "JD Lauret"
+__credits__ = ['JD Lauret',]
+__version__ = "1.0"
+__maintainer__ = "JD LAURET"
+__email__ = "jonathan.lauret@vivintsolar.com"
+__status__ = "Production"
+
 import datetime as dt
 import os
+import csv
 import shutil
 import time
 from queue import Queue
 from threading import Thread
+from collections import namedtuple
 
 from automator_utilities import find_main_dir
 from models import SnowflakeConsole, SnowFlakeDW, Task
@@ -52,6 +61,7 @@ class PriorityOrganizer:
     def __init__(self):
         self.task_list = []
         self.task_dict = {}
+        self.sorted_tasks = {}
         self.priority_queue = {}
 
     def _get_task_list(self):
@@ -82,6 +92,7 @@ class PriorityOrganizer:
                 'id': id,
                 'dependents': dependents,
             }
+            self.sorted_tasks[id] = False
 
     def _zero_priorities(self):
         for key in self.task_dict.keys():
@@ -89,9 +100,10 @@ class PriorityOrganizer:
             dependents = task_data.get('dependents')
             if not dependents:
                 self.priority_queue[task_data.get('id')] = 0
+                self.sorted_tasks[task_data.get('id')] = True
 
     def _set_priority(self):
-        for i in range(2):
+        while not all(x for x in self.sorted_tasks.values()):
             for key in self.task_dict.keys():
                 task_data = self.task_dict[key]
                 dependents = task_data.get('dependents')
@@ -99,10 +111,17 @@ class PriorityOrganizer:
                     for dependent in dependents:
                         dependent_id = int(dependent)
                         task_id = task_data.get('id')
-                        if not self.priority_queue.get(task_id):
-                            self.priority_queue[task_id] = self.priority_queue[dependent_id] + 1
-                        elif self.priority_queue.get(task_id) <= self.priority_queue[dependent_id]:
-                            self.priority_queue[task_id] = self.priority_queue[dependent_id] + 1
+                        if self.sorted_tasks.get(dependent_id) and task_id not in dependents:
+                            if not self.priority_queue.get(task_id):
+                                self.priority_queue[task_id] = self.priority_queue[dependent_id] + 1
+                            elif self.priority_queue.get(task_id) <= self.priority_queue[dependent_id]:
+                                self.priority_queue[task_id] = self.priority_queue[dependent_id] + 1
+                    complete_dependents = []
+                    for dependent in dependents:
+                        dependent_id = int(dependent)
+                        complete_dependents.append(self.sorted_tasks.get(dependent_id))
+                    if all(x for x in complete_dependents):
+                        self.sorted_tasks[task_id] = True
 
     def find_priorities(self):
         self._get_task_list()
@@ -125,12 +144,15 @@ class Automator:
         self.task_table = 'T_AUTO_TASKS'
         self.meta_data_table = 'T_AUTO_META_DATA'
 
+        self.main_dir = find_main_dir(__file__)
+
         self.task_table_column_names = []
         self.task_table_data = []
 
         # All Task Objects Store by Task ID
         self.task_objects = {}
 
+        self.TaskData = None
         # Separated Task Lists
         self.priority_queues = {}
 
@@ -159,8 +181,8 @@ class Automator:
         self.dw.execute_query(query)
         header = self.dw.query_columns
         results = self.dw.query_results
-        for i, col in enumerate(results[0]):
-            self.meta_data[header[i].lower()] = col
+        MetaData = namedtuple('MetaData', ' '.join(x.lower() for x in header))
+        self.meta_data = MetaData._make(results[0])
 
     def _status_running(self):
         query = 'UPDATE {table} SET CURRENT_STATUS = \'Running\''.format(table=self.meta_data_table)
@@ -183,6 +205,11 @@ class Automator:
             .format(table=self.meta_data_table)
         self.dw.execute_sql_command(query)
 
+    def _update_task_backup(self):
+        query = 'UPDATE {table} SET TASK_BACKUP = current_timestamp::timestamp_ntz'\
+            .format(table=self.meta_data_table)
+        self.dw.execute_sql_command(query)
+
     def backup_files(self):
         """
         Move backup files through day files
@@ -194,7 +221,7 @@ class Automator:
         storage_dir = os.path.join(os.getcwd(), 'file_storage')
 
         #  Get the last run date
-        last_backup = self.meta_data.get('last_backup')
+        last_backup = self.meta_data.last_backup
 
         #  Create random date if date it empty
         if not last_backup:
@@ -258,39 +285,69 @@ class Automator:
             # Update last run date
             self._update_last_backup()
 
+    def _clean_task_data_header(self):
+        for i, item in enumerate(self.task_table_column_names):
+            if item.lower()[-1] == 'x':
+                self.task_table_column_names[i] = item.lower().replace('x', '')
+            else:
+                self.task_table_column_names[i] = item.lower()
+
     def refresh_task_data(self):
         """
         Get Task Data from Database
         """
         self.dw.get_table_data(self.task_table)
         self.task_table_column_names = self.dw.column_names
+        self._clean_task_data_header()
+        self.TaskData = namedtuple('TaskData', ' '.join(self.task_table_column_names))
         self.task_table_data = self.dw.query_results
+        self._backup_tasks()
+
+    def _backup_tasks(self):
+        backup_folder = os.path.join(self.main_dir, 'task_backup')
+        file_name = os.path.join(backup_folder, 'task_data.csv')
+        if not self.meta_data.task_backup:
+            task_backup = dt.datetime.now() - dt.timedelta(hours=1)
+        else:
+            task_backup = self.meta_data.task_backup.replace(second=0, microsecond=0)
+        hours_since_backup = int((dt.datetime.now() - task_backup).seconds/60/60)
+        if hours_since_backup >= 1:
+            print('Backing up task table')
+            if self.dw.query_results:
+                with open(file_name, mode='w') as outfile:
+                    writer = csv.writer(outfile, delimiter=',', quotechar='"',
+                                        quoting=csv.QUOTE_MINIMAL, lineterminator='\n')
+                    for row in self.dw.query_with_header:
+                        writer.writerow(row)
+            self._update_task_backup()
 
     def create_task_objects(self):
         """
         Add tasks to Task Object Dictionary
         """
-        main_dir = find_main_dir(__file__)
         #  Review all data in table and create the task_object dict
         for task in self.task_table_data:
-            new_task = Task(task, self.task_table_column_names, working_dir=main_dir)
+            new_task = Task(self.TaskData._make(task), working_dir=self.main_dir)
             #  If the task id doesn't exist in the dict then create it
             if new_task.id not in self.task_objects.keys():
                 self.task_objects[new_task.id] = new_task
 
     def check_priorities(self):
-        today = dt.datetime.today()
-        last_priority_update = self.meta_data.get('last_priority_update')
+        today = dt.datetime.today().replace(minute=0, second=0, microsecond=0)
+        last_priority_update = self.meta_data.last_priority_update
 
         if not last_priority_update:
             last_priority_update = today - dt.timedelta(hours=1)
+        last_priority_update = last_priority_update.replace(minute=0, second=0, microsecond=0)
         hours_since_last_update = int((today - last_priority_update).seconds/60/60)
 
         missing_priority = False
+
         for task in self.task_objects.values():
             if not getattr(task, 'priority', None):
                 missing_priority = True
                 break
+
         if missing_priority or hours_since_last_update >= 1:
             priorities = PriorityOrganizer()
             priorities.find_priorities()
@@ -313,7 +370,7 @@ class Automator:
                 if task not in priority_queue:
                     priority_queue.append(task)
 
-    def run_task_queue(self):
+    def run_task_queues(self):
         """
         Loop through queue lists and add tasks to queue
         """
@@ -357,7 +414,7 @@ class Automator:
                 self.organize_tasks()
                 #  Place Python Tasks into the Queue
                 print('Evaluating Tasks')
-                self.run_task_queue()
+                self.run_task_queues()
                 self._update_last_run()
                 #  Sleep till next 5 minute interval 12:00, 12:05, etc
                 self.loop_sleep()

@@ -1,6 +1,9 @@
 import json
+import datetime as dt
+from automator import PriorityOrganizer
 from queue import Queue
 from models import Task, SnowFlakeDW, SnowflakeConsole
+from collections import namedtuple
 from automator_utilities import find_main_dir
 
 
@@ -17,11 +20,15 @@ class TaskTester:
         # Schema and Table containing task instructions
         self.task_table = 'D_POST_INSTALL.T_AUTO_TASKS'
 
+        self.main_dir = find_main_dir(__file__)
+
         self.task_table_column_names = []
         self.task_table_data = []
 
         # All Task Objects Store by Task ID
         self.task_objects = {}
+
+        self.TaskData = None
 
         # Queue for running tasks
         self.run_queue = Queue()
@@ -31,37 +38,31 @@ class TaskTester:
         self.command_tasks = []
         self.query_tasks = []
 
+    def _clean_task_data_header(self):
+        for i, item in enumerate(self.task_table_column_names):
+            if item.lower()[-1] == 'x':
+                self.task_table_column_names[i] = item.lower().replace('x', '')
+            else:
+                self.task_table_column_names[i] = item.lower()
+
     def get_tasks(self):
         self.dw.get_table_data(self.task_table)
         self.task_table_column_names = self.dw.query_columns
+        self._clean_task_data_header()
+        self.TaskData = namedtuple('TaskData', ' '.join(self.task_table_column_names))
         self.task_table_data = self.dw.query_results
 
-    def setup_task_dict(self, run_type):
-        main_dir = find_main_dir(__file__)
-        for row in self.task_table_data:
-            task = Task(row, self.task_table_column_names, run_type=run_type, working_dir=main_dir)
-            if task.id not in self.task_objects.keys():
-                self.task_objects[task.id] = task
+    def create_task_objects(self, testing):
+        """
+        Add tasks to Task Object Dictionary
+        """
+        #  Review all data in table and create the task_object dict
+        for task in self.task_table_data:
 
-    def create_settings_file(self):
-        settings_file = 'settings.json'
-        try:
-            file = open(settings_file, 'r')
-        except IOError:
-            file = open(settings_file, 'w')
-        file.close()
-
-        with open(settings_file) as infile:
-            try:
-                settings = json.load(infile)
-            except:
-                settings = {}
-
-        if 'storage_file_backup' not in settings.keys():
-            settings['storage_file_backup'] = {}
-
-        with open(settings_file, 'w') as outfile:
-            json.dump(settings, outfile, indent=4, sort_keys=True)
+            new_task = Task(self.TaskData._make(task), working_dir=self.main_dir, run_type=testing)
+            #  If the task id doesn't exist in the dict then create it
+            if new_task.id not in self.task_objects.keys():
+                self.task_objects[new_task.id] = new_task
 
     def organize_tasks(self):
         if self.test_only:
@@ -84,6 +85,20 @@ class TaskTester:
                     if task.data_source.lower() == 'sql':
                         self.query_tasks.append(task)
 
+    def check_priorities(self):
+
+        missing_priority = False
+        for task in self.task_objects.values():
+            if not getattr(task, 'priority', None):
+                missing_priority = True
+                break
+        if missing_priority:
+            priorities = PriorityOrganizer()
+            priorities.find_priorities()
+            for task in self.task_objects.values():
+                priority = priorities.priority_queue.get(int(task.id))
+                setattr(task, 'priority', priority)
+
     def setup_queue(self, list):
         for task in list:
             self.run_queue.put(task)
@@ -97,15 +112,16 @@ class TaskTester:
     def run_specific_task(self, task_id):
         self.get_tasks()
         testing = 'Testing' if self.test_only else 'Automated'
-        self.setup_task_dict(testing)
+        self.create_task_objects(testing)
+        self.check_priorities()
         task = self.task_objects[task_id]
         task.run_task()
 
     def run(self):
         self.get_tasks()
         testing = 'Testing' if self.test_only else 'Automated'
-        self.create_settings_file()
-        self.setup_task_dict(testing)
+        self.create_task_objects(testing)
+        self.check_priorities()
         self.organize_tasks()
         self.setup_queue(self.python_tasks)
         self.run_items_in_queue()
@@ -125,7 +141,7 @@ if __name__ == '__main__':
     db = SnowFlakeDW()
     db.set_user('JDLAURET')
     db.open_connection()
-    specific_task_id = 515
+    specific_task_id = 758
     run_as_test = True
     app = TaskTester(db)
     try:
