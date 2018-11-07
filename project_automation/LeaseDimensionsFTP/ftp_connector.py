@@ -31,19 +31,18 @@ Indexes on solar_billing_account_number and created_date.
 
 """
 
+import csv
 import os
 import sys
-import csv
-import pandas as pd
-
-from time import sleep
 from datetime import datetime
+from time import sleep
+
+import pandas as pd
+from BI.data_warehouse.connector import Snowflake
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-
-from models import SnowFlakeDW, SnowflakeConsole
+from selenium.webdriver.support.ui import WebDriverWait
 
 CHROME_DRIVER_PATH = r'C:\\Users\\jonathan.lauret\\Google Drive\\Projects\\Chrome Driver\chromedriver.exe'
 FIREFOX_DRIVER_PATH = r'C:\\Users\\jonathan.lauret\\Google Drive\\Projects\\Chrome Driver\geckodriver.exe'
@@ -132,7 +131,7 @@ class PrimaryCrawler:
         print('Logging into {url}'.format(url=LOGIN_URL))
         self.DRIVER.get(LOGIN_URL)
 
-        WebDriverWait(self.DRIVER, self.delay)\
+        WebDriverWait(self.DRIVER, self.delay) \
             .until(EC.presence_of_element_located((By.ID, payload['username']['html_name'])))
         # Insert Username
         uname = self.DRIVER.find_element_by_id(payload['username']['html_name'])
@@ -151,7 +150,7 @@ class PrimaryCrawler:
         print('Loading {url}'.format(url=REPORT_URL))
         self.DRIVER.get(REPORT_URL)
         try:
-            WebDriverWait(self.DRIVER, self.delay)\
+            WebDriverWait(self.DRIVER, self.delay) \
                 .until(EC.presence_of_all_elements_located((By.CLASS_NAME, 'table_16ftul1')))
         except Exception as e:
             print(e)
@@ -252,7 +251,8 @@ class PrimaryCrawler:
                 WebDriverWait(self.DRIVER, self.delay) \
                     .until(EC.presence_of_element_located((By.CLASS_NAME, 'buttonWrapper_18jq2rj')))
                 self.DRIVER.find_element_by_class_name('buttonWrapper_18jq2rj').click()
-            except: pass
+            except:
+                pass
             while not os.path.exists(os.path.join(DOWNLOAD_DIR, title)):
                 sleep(.5)
 
@@ -405,16 +405,15 @@ if __name__ == '__main__':
     pc = PrimaryCrawler('chrome', testing=testing)
     pc.run_crawler()
 
-    db = SnowFlakeDW()
+    db = Snowflake()
     db.set_user('JDLAURET')
     try:
         db.open_connection()
-        dw = SnowflakeConsole(db)
         for file in os.listdir(DOWNLOAD_DIR):
             if '.csv' in file and file not in read_process_file():
                 current_file = CsvProcessor(os.path.join(DOWNLOAD_DIR, file))
                 current_file.process_file()
-                dw.insert_into_table(TABLE_NAME, current_file.data, header_included=True)
+                db.insert_into_table(TABLE_NAME, current_file.data, header_included=True)
                 write_process_file(file)
     finally:
         db.close_connection()

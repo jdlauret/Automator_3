@@ -10,7 +10,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
-from models import DataWarehouse, SnowFlakeDW, SnowflakeConsole
+from BI.data_warehouse.connector import Snowflake
 
 CHROME_DRIVER_PATH = r'C:\\Users\\jonathan.lauret\\Google Drive\\Projects\\Chrome Driver\chromedriver.exe'
 FIREFOX_DRIVER_PATH = r'C:\\Users\\jonathan.lauret\\Google Drive\\Projects\\Chrome Driver\geckodriver.exe'
@@ -182,8 +182,8 @@ class FileProcessor:
     def __init__(self):
         self.data_header = []
         self.data = []
-        self.dw = DataWarehouse('admin')
-        self.sfdw = SnowflakeConsole(SFDB)
+        self.sfdw = Snowflake()
+        self.sfdw.set_user('JDLAURET')
         self.process_file_path = os.path.join(LOGS_DIR, 'Processed Files.txt')
         self.processed_files = []
 
@@ -235,8 +235,10 @@ class FileProcessor:
 
     def push_data_to_table(self):
         table_name = 'T_IC_CDR_SUPPLEMENTAL'
-        self.sfdw.insert_into_table('D_POST_INSTALL.' + table_name, self.data, date_time_format='%Y/%m/%d %H:%M:%S')
-        self.dw.insert_data_to_table('JDLAURET.' + table_name, self.data)
+        try:
+            self.sfdw.insert_into_table('D_POST_INSTALL.' + table_name, self.data, date_time_format='%Y/%m/%d %H:%M:%S')
+        finally:
+            self.sfdw.close_connection()
 
 
 def generate_json(file_path, date):
@@ -258,10 +260,6 @@ if __name__ == '__main__':
                  '/CustomReporting/ReportTemplateDetails.aspx?Id=7252#'
 
     TODAY = dt.datetime.now()
-    SFDB = SnowFlakeDW()
-    SFDB.set_user('JDLAURET')
-    SFDB.print_message_on()
-    SFDB.open_connection()
     generate_json(os.path.join(LOGS_DIR, 'report_download.json'), TODAY)
 
     payload = {
@@ -282,4 +280,3 @@ if __name__ == '__main__':
 
     processor = FileProcessor()
     processor.process_new_files()
-    SFDB.close_connection()

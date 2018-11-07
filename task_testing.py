@@ -141,7 +141,7 @@ if __name__ == '__main__':
     db = SnowFlakeDW()
     db.set_user('JDLAURET')
     db.open_connection()
-    specific_task_id = 758
+    specific_task_id = 744
     run_as_test = True
     app = TaskTester(db)
     try:

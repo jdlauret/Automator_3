@@ -6,7 +6,7 @@ import pandas as pd
 import pyexcel
 from time import sleep
 from openpyxl import load_workbook, Workbook
-from models import SnowFlakeDW, SnowflakeConsole
+from BI.data_warehouse.connector import Snowflake
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -519,9 +519,9 @@ def clear_last_14_days():
     WHERE TRUNC(SCHEDULED_START, 'day') >= DATEADD('day', -14, current_date)
     """
     print('Clearing last 14 days of data in Actual Table')
-    sfdw.execute_query(clear_actual)
+    db.execute_query(clear_actual)
     print('Clearing last 14 days of data in Scheduled Table')
-    sfdw.execute_query(clear_scheduled)
+    db.execute_query(clear_scheduled)
 
 
 if __name__ == '__main__':
@@ -529,82 +529,84 @@ if __name__ == '__main__':
 
     # Define if testing is active
     testing = True
-    db = SnowFlakeDW()
+    db = Snowflake()
     db.set_user('JDLAURET')
     db.open_connection()
-    sfdw = SnowflakeConsole(db)
-    # Define Table Names
-    actual_table = 'D_POST_INSTALL.T_WS_ACTIVITY_ACTUALS'
-    scheduled_table = 'D_POST_INSTALL.T_WS_ACTIVITY_SCHEDULED'
-    log_file_path = os.path.join(find_main_dir(), 'log.json')
-
-    # Define Data List to be uploaded
-    upload_actual_data = []
-    upload_scheduled_data = []
-
-    # Define Today and Date String
-    today = dt.datetime.today().date()
-    date_string = today.strftime('%Y-%m-%d')
-
     try:
-        log_file = open_json(log_file_path)
-    except json.JSONDecodeError as e:
-        log_file = {}
-    log_file[date_string] = {}
+        # Define Table Names
+        actual_table = 'D_POST_INSTALL.T_WS_ACTIVITY_ACTUALS'
+        scheduled_table = 'D_POST_INSTALL.T_WS_ACTIVITY_SCHEDULED'
+        log_file_path = os.path.join(find_main_dir(), 'log.json')
 
-    # Clear Downloads folder
-    clear_downloads()
+        # Define Data List to be uploaded
+        upload_actual_data = []
+        upload_scheduled_data = []
 
-    # Run Primary Crawler
-    crawler = PrimaryCrawler()
-    crawler.run_crawler()
-    log_file[date_string]['crawler'] = crawler.crawler_log
-    save_json(log_file_path, log_file)
+        # Define Today and Date String
+        today = dt.datetime.today().date()
+        date_string = today.strftime('%Y-%m-%d')
 
-    # Convert Downloaded Files from .xls to .xlsx
-    files_converted = 0
-    convert_files()
-    log_file[date_string]['converted_files'] = files_converted
-    save_json(log_file_path, log_file)
+        try:
+            log_file = open_json(log_file_path)
+        except json.JSONDecodeError as e:
+            log_file = {}
+        log_file[date_string] = {}
 
-    # Go through each file in the Download Directory and process all .xlsx files
-    process_files = []
-    for file in os.listdir(DOWNLOAD_DIR):
-        if '.xlsx' in file:
-            process_files.append(ProcessDownloads(os.path.join(DOWNLOAD_DIR, file)))
-            # Store object data in Data lists
-    for obj in process_files:
-        upload_actual_data = upload_actual_data + obj.actual_data_set
-        upload_scheduled_data = upload_scheduled_data + obj.scheduled_data_set
-        log_file[date_string][os.path.basename(obj.file_path)] = obj.file_log
+        # Clear Downloads folder
+        clear_downloads()
+
+        # Run Primary Crawler
+        crawler = PrimaryCrawler()
+        crawler.run_crawler()
+        log_file[date_string]['crawler'] = crawler.crawler_log
         save_json(log_file_path, log_file)
 
-    # Clear the last 14 days of data from both tables
-    try:
-        clear_last_14_days()
-        log_file[date_string]['cleared_data'] = True
-    except:
-        log_file[date_string]['cleared_data'] = False
-        pass
-    # Send data from data lists to tables
-    table_log = {
-        'actual_table_updated': False,
-        'scheduled_table_updated': False
-    }
-    try:
-        sfdw.insert_into_table(actual_table, upload_actual_data)
-        log_file[date_string]['actual_table_updated'] = True
+        # Convert Downloaded Files from .xls to .xlsx
+        files_converted = 0
+        convert_files()
+        log_file[date_string]['converted_files'] = files_converted
         save_json(log_file_path, log_file)
-    except:
-        log_file[date_string]['actual_table_updated'] = False
-        pass
 
-    try:
-        sfdw.insert_into_table(scheduled_table, upload_scheduled_data)
-        log_file[date_string]['scheduled_table_update'] = True
-        save_json(log_file_path, log_file)
-    except:
-        log_file[date_string]['scheduled_table_update'] = False
-        pass
-    db.close_connection()
+        # Go through each file in the Download Directory and process all .xlsx files
+        process_files = []
+        for file in os.listdir(DOWNLOAD_DIR):
+            if '.xlsx' in file:
+                process_files.append(ProcessDownloads(os.path.join(DOWNLOAD_DIR, file)))
+                # Store object data in Data lists
+        for obj in process_files:
+            upload_actual_data = upload_actual_data + obj.actual_data_set
+            upload_scheduled_data = upload_scheduled_data + obj.scheduled_data_set
+            log_file[date_string][os.path.basename(obj.file_path)] = obj.file_log
+            save_json(log_file_path, log_file)
+
+        # Clear the last 14 days of data from both tables
+
+        try:
+            clear_last_14_days()
+            log_file[date_string]['cleared_data'] = True
+        except:
+            log_file[date_string]['cleared_data'] = False
+            pass
+        # Send data from data lists to tables
+        table_log = {
+            'actual_table_updated': False,
+            'scheduled_table_updated': False
+        }
+        try:
+            db.insert_into_table(actual_table, upload_actual_data)
+            log_file[date_string]['actual_table_updated'] = True
+            save_json(log_file_path, log_file)
+        except:
+            log_file[date_string]['actual_table_updated'] = False
+            pass
+
+        try:
+            db.insert_into_table(scheduled_table, upload_scheduled_data)
+            log_file[date_string]['scheduled_table_update'] = True
+            save_json(log_file_path, log_file)
+        except:
+            log_file[date_string]['scheduled_table_update'] = False
+            pass
+    finally:
+        db.close_connection()
     # End Script

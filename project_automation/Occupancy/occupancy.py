@@ -4,11 +4,12 @@ import json
 import os
 from time import sleep
 
+from BI.data_warehouse.connector import Snowflake
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
-from models import SnowFlakeDW, SnowflakeConsole
+
 CHROME_DRIVER_PATH = r'C:\\Users\\jonathan.lauret\\Google Drive\\Projects\\Chrome Driver\chromedriver.exe'
 FIREFOX_DRIVER_PATH = r'C:\\Users\\jonathan.lauret\\Google Drive\\Projects\\Chrome Driver\geckodriver.exe'
 
@@ -184,7 +185,7 @@ class FileProcessor:
     def __init__(self):
         self.data_header = []
         self.data = []
-        self.db = SnowFlakeDW()
+        self.db = Snowflake()
         self.db.set_user('JDLAURET')
         self.dw = None
         self.process_file_path = os.path.join(LOGS_DIR, 'Processed Files.txt')
@@ -217,7 +218,6 @@ class FileProcessor:
             column_names = self.data_header = data[0]
             del data[0:3]
             if column_names[0] != '':
-
                 self.data = data
                 self.remove_blank_rows()
                 self.trim_extra_column()
@@ -244,8 +244,7 @@ class FileProcessor:
         if len(self.data) > 0:
             try:
                 self.db.open_connection()
-                self.dw = SnowflakeConsole(self.db)
-                self.dw.insert_into_table('D_POST_INSTALL.T_IC_OCCUPANCY', self.data)
+                self.db.insert_into_table('D_POST_INSTALL.T_IC_OCCUPANCY', self.data)
             finally:
                 self.db.close_connection()
 

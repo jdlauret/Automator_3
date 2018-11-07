@@ -26,19 +26,20 @@ import json
 import os
 
 import pandas
-from models import SnowFlakeDW, SnowflakeConsole, InContactReport
+from BI.data_warehouse.connector import Snowflake
+from BI.utilities.incontact import InContactReport
 
 
 class Upload:
-    def __init__(self, report, table_name, db, clear_table=False):
+    def __init__(self, report, table_name, dw, clear_table=False):
         self.report = report
         self.table = table_name
         self.overwrite = clear_table
-        self.dw = SnowflakeConsole(db)
+        self.dw = dw
         try:
             self.upload_to_table()
         finally:
-            db.close_connection()  # added 10/02/2018
+            self.dw.close_connection()  # added 10/02/2018
 
     def upload_to_table(self):
         self.dw.insert_into_table(self.table, self.report, overwrite=self.overwrite)
@@ -64,9 +65,9 @@ class ReportDownloader:
         self.file = 'download_dates.json'
         self.all_dates = None
         self.read_file()
-        self.db = SnowFlakeDW()
-        self.db.set_user('JDLAURET')
-        self.dw = SnowflakeConsole(self.db)
+
+        self.dw = Snowflake()
+        self.dw.set_user('JDLAURET')
 
         if self.download_log_key not in self.all_dates.keys():
             self.all_dates[self.download_log_key] = {}
@@ -125,7 +126,7 @@ class ReportDownloader:
                 self.write_file()
 
     def upload_data_to_table(self):
-        Upload(self.data_frame, self.table_name, self.db)
+        Upload(self.data_frame, self.table_name, self.dw)
 
 
 reports_dict = {

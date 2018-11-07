@@ -4,7 +4,8 @@ import datetime as dt
 import multiprocessing as mp
 import os
 import sys
-from models import SnowFlakeDW, SnowflakeConsole
+
+from BI.data_warehouse.connector import Snowflake
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from word_list_generator import list_generator
@@ -38,7 +39,7 @@ def clear_temp_data():
     """
     Deletes all files contained in temp_files
     """
-    print('Clearing Temp Data')
+    # print('Clearing Temp Data')
     temp_files = [f for f in os.listdir('temp_data')]
     for f in temp_files:
         os.remove(os.path.join('temp_data', f))
@@ -48,7 +49,7 @@ def clear_qualtrics_data():
     """
     Deletes all files contained in temp_files
     """
-    print('Clearing Temp Data')
+    # print('Clearing Temp Data')
     temp_files = [f for f in os.listdir('qualtrics_data')]
     for f in temp_files:
         try:
@@ -277,10 +278,9 @@ def worker(arg):
 
 if __name__ == '__main__':
 
-    db = SnowFlakeDW()
+    db = Snowflake()
     db.set_user('JDLAURET')
     db.open_connection()
-    dw = SnowflakeConsole(db)
     testing = True
 
     get_new_data = True
@@ -294,8 +294,8 @@ if __name__ == '__main__':
     DATA_FOLDER = os.path.join(MAIN_DIR, 'data')
     INPUT_DIR = os.path.join(MAIN_DIR, 'input')
 
-    if testing:
-        print(MAIN_DIR)
+    # if testing:
+    #     print(MAIN_DIR)
 
     # Dates
     start = dt.datetime.now()
@@ -308,32 +308,32 @@ if __name__ == '__main__':
             clear_qualtrics_data()
         except:
             pass
-        print('Downloading Qualtrics Data')
+        # print('Downloading Qualtrics Data')
         survey_objects = [DownloadSurveyType(value) for key, value in survey_dict.items()]
         pool1.map(worker, ((obj, 'get_qualtrics_data') for obj in survey_objects))
 
         files_for_extraction = [filename for filename in os.listdir('qualtrics_data') if filename.endswith('.csv')]
         extraction_objects = [CreateQualtricsJson(file_name) for file_name in files_for_extraction]
 
-        print('Extracting Qualtrics Survey Data')
+        # print('Extracting Qualtrics Survey Data')
         pool1.map(worker, ((obj, 'create_lists_from_excel') for obj in extraction_objects))
-        print('Survey Data Processed and Saved')
+        # print('Survey Data Processed and Saved')
         pool1.close()
         pool1.join()
 
     PUBLIC_NPS_TABLE = 'D_POST_INSTALL.T_NPS_SURVEY_RESPONSE'
     NPS_FILE_ID = '0B9Fc6ijLP56VbmFGc0V5MzZOU00'
 
-    print('Reformatting Qualtrics Data')
+    # print('Reformatting Qualtrics Data')
     data_warehouse_data = qualtrics_processor()
     public_data_warehouse_data = format_survey_data(data_warehouse_data.get('public'))
     private_data_warehouse_data = copy.deepcopy(public_data_warehouse_data)
-    print('Qualtrics formatted and in memory')
+    # print('Qualtrics formatted and in memory')
 
     # NPS Dash - Projects v2.sql
 
     word_cloud_table = 'D_POST_INSTALL.T_NPS_WORD_CLOUD_DATA'
-    print('Download Complete')
+    # print('Download Complete')
 
     reviewed_data_file = 'reviewed_surveys'
     data_dir = os.getcwd() + '\\data'
@@ -345,12 +345,14 @@ if __name__ == '__main__':
                                               1,
                                               reset=words_reset))
 
-    if update_tables:
-        dw.insert_into_table(word_cloud_table, word_cloud_data, header_included=True, overwrite=True)
+    try:
+        if update_tables:
+            db.insert_into_table(word_cloud_table, word_cloud_data, header_included=True, overwrite=True)
 
-        dw.insert_into_table(PUBLIC_NPS_TABLE, public_data_warehouse_data, header_included=True, overwrite=True)
+            db.insert_into_table(PUBLIC_NPS_TABLE, public_data_warehouse_data, header_included=True, overwrite=True)
 
-    end = dt.datetime.now()
-    duration = end - start
-    print('All Tasks Completed in {0} seconds'.format(duration.total_seconds()))
-    db.close_connection()
+        end = dt.datetime.now()
+        duration = end - start
+        # print('All Tasks Completed in {0} seconds'.format(duration.total_seconds()))
+    finally:
+        db.close_connection()

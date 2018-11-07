@@ -6,7 +6,7 @@ from time import sleep
 
 import pandas as pd
 from dateutil.relativedelta import relativedelta
-from models import SnowFlakeDW, SnowflakeConsole
+from BI.data_warehouse.connector import Snowflake
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
@@ -177,9 +177,8 @@ class FileProcessor:
 
     def __init__(self, last_five_months):
         self.data = []
-        self.db = SnowFlakeDW()
+        self.db = Snowflake()
         self.db.set_user('JDLAURET')
-        self.dw = SnowflakeConsole(self.db)
         self.last_five_months = last_five_months
         self.columns_to_keep = [
             'Agent ID',
@@ -207,8 +206,7 @@ class FileProcessor:
     def push_data_to_table(self):
         if len(self.data) > 0:
             try:
-                self.db.open_connection()
-                self.dw.insert_into_table('D_POST_INSTALL.T_IC_USERS', self.data, overwrite=True)
+                self.db.insert_into_table('D_POST_INSTALL.T_IC_USERS', self.data, overwrite=True)
             finally:
                 self.db.close_connection()
 

@@ -1,21 +1,22 @@
 __author__ = "JD Lauret"
-__credits__ = ['JD Lauret',]
+__credits__ = ['JD Lauret', ]
 __version__ = "1.0"
 __maintainer__ = "JD LAURET"
 __email__ = "jonathan.lauret@vivintsolar.com"
 __status__ = "Production"
 
+import csv
 import datetime as dt
 import os
-import csv
 import shutil
 import time
+from collections import namedtuple
 from queue import Queue
 from threading import Thread
-from collections import namedtuple
 
+from BI.data_warehouse.connector import Snowflake
 from automator_utilities import find_main_dir
-from models import SnowflakeConsole, SnowFlakeDW, Task
+from models import Task
 
 
 class TaskRunner(Thread):
@@ -57,89 +58,15 @@ class TaskThreadPool:
         self._q.join()
 
 
-class PriorityOrganizer:
-    def __init__(self):
-        self.task_list = []
-        self.task_dict = {}
-        self.sorted_tasks = {}
-        self.priority_queue = {}
-
-    def _get_task_list(self):
-        query = '''
-        SELECT ID, DEPENDENCIES
-        FROM D_POST_INSTALL.T_AUTO_TASKS
-        '''
-        db = SnowFlakeDW()
-        db.set_user('JDLAURET')
-
-        dw = SnowflakeConsole(db)
-
-        db.open_connection()
-        try:
-            dw.execute_query(query)
-        finally:
-            db.close_connection()
-
-        self.task_list = dw.query_results
-
-    def _create_task_dict(self):
-        for row in self.task_list:
-            id, dependents = row[0], row[1]
-            if dependents:
-                dependents = dependents.split(',')
-
-            self.task_dict[id] = {
-                'id': id,
-                'dependents': dependents,
-            }
-            self.sorted_tasks[id] = False
-
-    def _zero_priorities(self):
-        for key in self.task_dict.keys():
-            task_data = self.task_dict[key]
-            dependents = task_data.get('dependents')
-            if not dependents:
-                self.priority_queue[task_data.get('id')] = 0
-                self.sorted_tasks[task_data.get('id')] = True
-
-    def _set_priority(self):
-        while not all(x for x in self.sorted_tasks.values()):
-            for key in self.task_dict.keys():
-                task_data = self.task_dict[key]
-                dependents = task_data.get('dependents')
-                if dependents:
-                    for dependent in dependents:
-                        dependent_id = int(dependent)
-                        task_id = task_data.get('id')
-                        if self.sorted_tasks.get(dependent_id) and task_id not in dependents:
-                            if not self.priority_queue.get(task_id):
-                                self.priority_queue[task_id] = self.priority_queue[dependent_id] + 1
-                            elif self.priority_queue.get(task_id) <= self.priority_queue[dependent_id]:
-                                self.priority_queue[task_id] = self.priority_queue[dependent_id] + 1
-                    complete_dependents = []
-                    for dependent in dependents:
-                        dependent_id = int(dependent)
-                        complete_dependents.append(self.sorted_tasks.get(dependent_id))
-                    if all(x for x in complete_dependents):
-                        self.sorted_tasks[task_id] = True
-
-    def find_priorities(self):
-        self._get_task_list()
-        self._create_task_dict()
-        self._zero_priorities()
-        self._set_priority()
-
-
 class Automator:
     def __init__(self):
         """
         Automator Settings
         """
         # Database Object to use
-        self.db = SnowFlakeDW()
-        self.db.set_user('JDLAURET')
-        self.db.set_schema('D_POST_INSTALL')
-        self.dw = None
+        self.dw = Snowflake()
+        self.dw.set_user('JDLAURET')
+        self.dw.set_schema('D_POST_INSTALL')
         # Schema and Table containing task instructions
         self.task_table = 'T_AUTO_TASKS'
         self.meta_data_table = 'T_AUTO_META_DATA'
@@ -161,13 +88,6 @@ class Automator:
         # Max number of threads to have running
         self.max_task_num_threads = 7
         self.task_pool = TaskThreadPool(self.max_task_num_threads)
-
-    def set_database(self, new_db):
-        """
-        Change Database Object
-        :param new_db: New DB Object
-        """
-        self.db = new_db
 
     def set_database_table(self, table_name):
         """
@@ -201,12 +121,12 @@ class Automator:
         self.dw.execute_sql_command(query)
 
     def _update_last_priority_update(self):
-        query = 'UPDATE {table} SET LAST_PRIORITY_UPDATE = current_timestamp::timestamp_ntz'\
+        query = 'UPDATE {table} SET LAST_PRIORITY_UPDATE = current_timestamp::timestamp_ntz' \
             .format(table=self.meta_data_table)
         self.dw.execute_sql_command(query)
 
     def _update_task_backup(self):
-        query = 'UPDATE {table} SET TASK_BACKUP = current_timestamp::timestamp_ntz'\
+        query = 'UPDATE {table} SET TASK_BACKUP = current_timestamp::timestamp_ntz' \
             .format(table=self.meta_data_table)
         self.dw.execute_sql_command(query)
 
@@ -310,7 +230,7 @@ class Automator:
             task_backup = dt.datetime.now() - dt.timedelta(hours=1)
         else:
             task_backup = self.meta_data.task_backup.replace(second=0, microsecond=0)
-        hours_since_backup = int((dt.datetime.now() - task_backup).seconds/60/60)
+        hours_since_backup = int((dt.datetime.now() - task_backup).seconds / 60 / 60)
         if hours_since_backup >= 1:
             print('Backing up task table')
             if self.dw.query_results:
@@ -339,7 +259,7 @@ class Automator:
         if not last_priority_update:
             last_priority_update = today - dt.timedelta(hours=1)
         last_priority_update = last_priority_update.replace(minute=0, second=0, microsecond=0)
-        hours_since_last_update = int((today - last_priority_update).seconds/60/60)
+        hours_since_last_update = int((today - last_priority_update).seconds / 60 / 60)
 
         missing_priority = False
 
@@ -396,8 +316,7 @@ class Automator:
         # Start Program Loop
         while True:
             try:
-                self.db.open_connection()
-                self.dw = SnowflakeConsole(self.db)
+                self.dw.open_connection()
                 #  Get meta data from T_AUTO_SAVE_DATA
                 self._get_meta_data()
                 #  Update Meta Data Status
@@ -420,7 +339,75 @@ class Automator:
                 self.loop_sleep()
 
             finally:
-                self.db.close_connection()
+                self.dw.close_connection()
+
+
+class PriorityOrganizer(Automator):
+    TaskInfo = namedtuple('TaskInfo', 'id dependents sorted')
+
+    def __init__(self):
+        Automator.__init__(self)
+        self.task_list = []
+        self.task_dict = {}
+        self.sorted_tasks = {}
+        self.priority_queue = {}
+
+    def _get_task_list(self):
+        query = '''
+        SELECT ID, DEPENDENCIES
+        FROM D_POST_INSTALL.T_AUTO_TASKS
+        ORDER BY ID DESC
+        '''
+        self.dw.open_connection()
+        try:
+            self.dw.execute_query(query)
+        finally:
+            self.dw.close_connection()
+
+        self.task_list = self.dw.query_results
+
+    def _create_task_dict(self):
+        for row in self.task_list:
+            row.append(False)
+            task_info = self.TaskInfo._make(row)
+            self.task_dict[task_info.id] = task_info
+
+    def _zero_priorities(self):
+        for key in self.task_dict.keys():
+            task_data = self.task_dict[key]
+            dependents = task_data.dependents
+            if not dependents:
+                self.priority_queue[task_data.id] = 0
+                self.task_dict[key] = task_data._replace(sorted=True)
+
+    def _set_priority(self):
+        while not all(x.sorted for x in self.task_dict.values()):
+            for key in self.task_dict.keys():
+                task_data = self.task_dict[key]
+                if task_data.dependents:
+                    dependents = task_data.dependents.split(',')
+                    for dependent in dependents:
+                        dependent_id = int(dependent)
+                        task_id = task_data.id
+                        if self.task_dict.get(dependent_id) and task_id not in dependents:
+                            dependent_sorted = self.priority_queue.get(dependent_id)
+                            if dependent_sorted is not None:
+                                if not self.priority_queue.get(task_id):
+                                    self.priority_queue[task_id] = self.priority_queue[dependent_id] + 1
+                                elif self.priority_queue.get(task_id) <= self.priority_queue[dependent_id]:
+                                    self.priority_queue[task_id] = self.priority_queue[dependent_id] + 1
+                                complete_dependents = []
+                                for dependent in dependents:
+                                    dependent_id = int(dependent)
+                                    complete_dependents.append(self.task_dict[dependent_id].sorted)
+                                if all(x for x in complete_dependents):
+                                    self.task_dict[task_id] = task_data._replace(sorted=True)
+
+    def find_priorities(self):
+        self._get_task_list()
+        self._create_task_dict()
+        self._zero_priorities()
+        self._set_priority()
 
 
 if __name__ == '__main__':

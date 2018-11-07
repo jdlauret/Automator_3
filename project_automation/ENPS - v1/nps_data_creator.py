@@ -1,11 +1,10 @@
 import multiprocessing as mp
 import datetime as dt
-import cx_Oracle
 import sys
 import csv
 import os
 import json
-from models import SnowFlakeDW, SnowflakeConsole
+from BI.data_warehouse.connector import Snowflake
 from openpyxl import Workbook, load_workbook
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from word_list_generator import list_generator
@@ -158,9 +157,6 @@ def write_to_sheet(arr, ws):
         except:
             if isinstance(line, tuple):
                 arr[r] = list(line)
-            for i, value in enumerate(line):
-                if isinstance(value, cx_Oracle.LOB):
-                    arr[r][i] = str(value)
             ws.append(arr[r])
         print_progress(r, len(arr), prefix='Progress', suffix='Complete')
 
@@ -301,7 +297,7 @@ if __name__ == '__main__':
     update_tables = True
     words_reset = False
 
-    db = SnowFlakeDW()
+    db = Snowflake()
     db.set_user("JDLAURET")
 
     NUM_CORE = 3
@@ -368,11 +364,10 @@ if __name__ == '__main__':
     if update_tables:
         try:
             db.open_connection()
-            dw = SnowflakeConsole(db)
-            dw.insert_into_table(word_cloud_table, word_cloud_data, overwrite=True, header_included=True)
-            dw.insert_into_table(ENPS_TABLE, data_warehouse_data, overwrite=True, header_included=True)
-            dw.insert_into_table(ONBOARDING_TABLE, onboarding_data, overwrite=True, header_included=True)
-            dw.insert_into_table(EXIT_TABLE, exit_data, overwrite=True, header_included=True)
+            db.insert_into_table(word_cloud_table, word_cloud_data, overwrite=True, header_included=True)
+            db.insert_into_table(ENPS_TABLE, data_warehouse_data, overwrite=True, header_included=True)
+            db.insert_into_table(ONBOARDING_TABLE, onboarding_data, overwrite=True, header_included=True)
+            db.insert_into_table(EXIT_TABLE, exit_data, overwrite=True, header_included=True)
         finally:
             db.close_connection()
 

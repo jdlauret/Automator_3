@@ -4,7 +4,7 @@ import os
 from time import sleep
 
 import pandas as pd
-from models import SnowFlakeDW, SnowflakeConsole
+from BI.data_warehouse.connector import Snowflake
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
@@ -192,9 +192,8 @@ class FileProcessor:
 
     def __init__(self, quarter_year_list):
         self.data = []
-        self.db = SnowFlakeDW()
+        self.db = Snowflake()
         self.db.set_user('JDLAURET')
-        self.dw = SnowflakeConsole(self.db)
         self.quarter_year_list = quarter_year_list
         self.quarter_strings = ['Q' + str(x[0]) + '-' + str(x[1]) for x in self.quarter_year_list]
         self.columns_to_keep = [
@@ -243,7 +242,7 @@ class FileProcessor:
                                                     c=self.quarter_strings[2])
         self.db.open_connection()
         try:
-            self.dw.execute_sql_command(query)
+            self.db.execute_sql_command(query)
         finally:
             self.db.close_connection()
 
@@ -251,7 +250,7 @@ class FileProcessor:
         if len(self.data) > 0:
             try:
                 self.db.open_connection()
-                self.dw.insert_into_table('D_POST_INSTALL.T_PTS_GEN', self.data)
+                self.db.insert_into_table('D_POST_INSTALL.T_PTS_GEN', self.data)
             finally:
                 self.db.close_connection()
 

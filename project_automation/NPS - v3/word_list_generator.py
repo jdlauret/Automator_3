@@ -286,8 +286,8 @@ def list_generator(data, data_header, word_num, reset=False, testing=False):
     if reset:
         save_json(get_file(word_and_id_file, 'data'), {})
 
-    print()
-    print('Building {0} Word Set(s)'.format(word_num))
+    # print()
+    # print('Building {0} Word Set(s)'.format(word_num))
     for i, col in enumerate(data_header):
         check = col.lower()
         if check == 'response_id':
@@ -298,11 +298,11 @@ def list_generator(data, data_header, word_num, reset=False, testing=False):
             anps_comment_col = i
 
     lines = len(data)
-    print("Now building data from {0} surveys".format(lines))
+    # print("Now building data from {0} surveys".format(lines))
 
     for j, line in enumerate(data):
-        if (j+1) % 100 == 0:
-            print('Analyzing Survey {0}'.format(j+1))
+        # if (j+1) % 100 == 0:
+            # print('Analyzing Survey {0}'.format(j+1))
         if j > 0:
             survey_id = line[survey_id_col]
             nps_comment = str(line[nps_comment_col])
@@ -339,10 +339,10 @@ def list_generator(data, data_header, word_num, reset=False, testing=False):
 
                 if not testing:
                     word_and_id[survey_id][key_name]['ANPS']['Reviewed'] = True
-    print('{0} Surveys Analyzed'.format(j + 1))
+    # print('{0} Surveys Analyzed'.format(j + 1))
 
     if not testing:
-        print('Saving Word Cloud Data')
+        # print('Saving Word Cloud Data')
         save_json(get_file(excluded_word_file, 'data'), excluded_words)
         save_json(get_file(word_and_id_file, 'data'), word_and_id)
 

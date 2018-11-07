@@ -4,7 +4,8 @@ import re
 import sys
 import threading
 
-from models import SnowFlakeDW, SnowflakeConsole, GSheets
+from BI.data_warehouse.connector import Snowflake
+from BI.google.gsheets import GSheets
 
 
 def find_main_dir():
@@ -539,13 +540,15 @@ def qa_data_handler():
     qa_questions_table = 'D_POST_INSTALL.T_FS_QUESTION_RESULTS'
 
     if update_tables:
-        dw = SnowflakeConsole(db)
-        dw.insert_into_table(qa_info_table, qa_info, overwrite=True, header_included=True)
-        dw.insert_into_table(qa_questions_table, question_results, overwrite=True, header_included=True)
+        db.insert_into_table(qa_info_table, qa_info, overwrite=True, header_included=True)
+        db.insert_into_table(qa_questions_table, question_results, overwrite=True, header_included=True)
 
 
 def esc_data_handler():
-    esc_formstack_data = GSheets('1Zt2qTfiPleVn4zhXTQG_n6woNTvE_0G9pp-rmz6fOzI').get_sheet_data('Sheet1')
+    esc_formstack = GSheets('1Zt2qTfiPleVn4zhXTQG_n6woNTvE_0G9pp-rmz6fOzI')
+    esc_formstack.set_active_sheet('Sheet1')
+    esc_formstack.get_sheet_data()
+    esc_formstack_data = esc_formstack.results
     esc_formstack_header = esc_formstack_data[0]
     del esc_formstack_data[0]
 
@@ -560,15 +563,13 @@ def esc_data_handler():
     esc_questions_table = 'D_POST_INSTALL.T_FS_ESC_QUESTION_RESULTS'
 
     if update_tables:
-        dw = SnowflakeConsole(db)
+        db.insert_into_table(esc_info_table, esc_info, overwrite=True, header_included=True)
 
-        dw.insert_into_table(esc_info_table, esc_info, overwrite=True, header_included=True)
-
-        dw.insert_into_table(esc_questions_table, question_results, overwrite=True, header_included=True)
+        db.insert_into_table(esc_questions_table, question_results, overwrite=True, header_included=True)
 
 
 if __name__ == '__main__':
-    db = SnowFlakeDW()
+    db = Snowflake()
     db.set_user('JDLAURET')
     db.open_connection()
     try:
@@ -582,17 +583,32 @@ if __name__ == '__main__':
 
         if run_qa_data:
             print("Opening Formstack Data Sheets and DA Sheet")
-            old_formstack_data = GSheets('1OyV1Z1OhInpV-25p6y953iX3EZZgMuHL3YNtDV9ZJuw').get_sheet_data('Sheet1')
-            new_formstack_data = GSheets('185QE7xVUzWoNhRm_Ysz5Fld1f9-Nm0EaTyiUeP4TyCk').get_sheet_data('Sheet1')
-            db_qa_data = GSheets('1aa1BS1UVUCKJJ12XqulmDaMr7oLjsLOf62kBn0mX7zc').get_sheet_data('Quality Data')
-            db_validation_data = GSheets('1aa1BS1UVUCKJJ12XqulmDaMr7oLjsLOf62kBn0mX7zc').get_sheet_data(
-                "Validation Import")
+            old_formstack = GSheets('1OyV1Z1OhInpV-25p6y953iX3EZZgMuHL3YNtDV9ZJuw')
+            old_formstack.set_active_sheet('Sheet1')
+            old_formstack.get_sheet_data()
+
+            new_formstack = GSheets('185QE7xVUzWoNhRm_Ysz5Fld1f9-Nm0EaTyiUeP4TyCk')
+            new_formstack.set_active_sheet('Sheet1')
+            new_formstack.get_sheet_data()
+
+            db_qa = GSheets('1aa1BS1UVUCKJJ12XqulmDaMr7oLjsLOf62kBn0mX7zc')
+            db_qa.set_active_sheet('Quality Data')
+            db_qa.get_sheet_data()
+            db_validation = GSheets('1aa1BS1UVUCKJJ12XqulmDaMr7oLjsLOf62kBn0mX7zc')
+            db_validation.set_active_sheet("Validation Import")
+            db_validation.get_sheet_data()
 
             print('Sheets opened and values stored')
-
+            old_formstack_data = old_formstack.results
             old_formstack_header = old_formstack_data[0]
+
+            new_formstack_data = new_formstack.results
             new_formstack_header = new_formstack_data[0]
+
+            db_qa_data = db_qa.results
             db_qa_header = db_qa_data[1]
+
+            db_validation_data = db_validation.results
             db_validation_header = db_validation_data[3]
 
             del db_qa_data[0:1]
