@@ -73,3 +73,5 @@ qualtrics_data/
 file_backups/
 
 automator\.exe
+
+project_automation/Contact_History/logs/

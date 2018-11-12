@@ -5,7 +5,8 @@ import pandas as pd
 import numpy as np
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
-from models import GDrive, SnowFlakeDW, SnowflakeConsole
+from BI.data_warehouse.connector import Snowflake
+from BI.google.gdrive import GDrive
 
 
 FILE_ID = '1PFz4qrZp2x6hhgP1asac2Bk_O6G4Jz4Q'
@@ -41,38 +42,36 @@ def telogis_data_from_excel(file_path):
 
 
 if __name__ == '__main__':
-    db = SnowFlakeDW()
+    db = Snowflake()
     db.set_user('JDLAURET')
-    db.open_connection()
-    dw = SnowflakeConsole(db)
+
     print("Downloading Telogis Data")
     gd = GDrive()
     file = gd.download_file(FILE_ID, FILE_NAME)
     new_file = FILE_NAME.replace('.csv', '') + '_fixed.csv'
+    with open(FILE_NAME, 'r', encoding='utf-8', errors='ignore') as infile, \
+            open(new_file, 'w', encoding='utf-8') as outfile:
+
+        inputs = csv.reader(infile)
+        output = csv.writer(outfile)
+
+        for index, row in enumerate(inputs):
+            # Create file with no header
+            output.writerow(row)
+
     try:
-        with open(FILE_NAME, 'r', encoding='utf-8', errors='ignore') as infile, \
-                open(new_file, 'w', encoding='utf-8') as outfile:
-
-            inputs = csv.reader(infile)
-            output = csv.writer(outfile)
-
-            for index, row in enumerate(inputs):
-                # Create file with no header
-                output.writerow(row)
-
-        try:
-            telogis_data = telogis_data_from_excel(new_file)
-            telogis_data.to_csv(new_file, sep=',', na_rep='', encoding='utf-8', index=False)
-            df = pd.read_csv(new_file)
-            df = df.where((pd.notnull(df)), None)
-            df = df.values.tolist()
-        except Exception as e:
-            raise e
-
-        try:
-            dw.insert_into_table(TABLE_NAME, df, overwrite=True)
-        except Exception as e:
-            raise e
+        telogis_data = telogis_data_from_excel(new_file)
+        telogis_data.to_csv(new_file, sep=',', na_rep='', encoding='utf-8', index=False)
+        df = pd.read_csv(new_file)
+        df = df.where((pd.notnull(df)), None)
+        df = df.values.tolist()
+    except Exception as e:
+        raise e
+    db.open_connection()
+    try:
+        db.insert_into_table(TABLE_NAME, df, overwrite=True)
+    except Exception as e:
+        raise e
     finally:
         db.close_connection()
         os.remove(FILE_NAME)

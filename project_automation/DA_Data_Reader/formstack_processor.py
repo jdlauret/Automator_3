@@ -49,9 +49,8 @@ def find_foreman():
 
     file_data = re.sub(' +', ' ', file_data)
     file_data = file_data.replace(';', '')
-    dw = SnowflakeConsole(db)
-    dw.execute_query(file_data)
-    return dw.query_with_header
+    db.execute_query(file_data)
+    return db.query_with_header
 
 
 class EscFormstackProcessor:
@@ -455,10 +454,9 @@ class QaFormstackProcessor:
 
     def get_project_id(self, ar):
         query = "SELECT TP.PROJECT_ID FROM RPT.T_SERVICE TP WHERE TP.SERVICE_NUMBER = '{ar}'".format(ar=str(ar))
-        dw = SnowflakeConsole(db)
-        dw.execute_query(query)
-        if dw.query_results:
-            return dw.query_results[0][0]
+        db.execute_query(query)
+        if db.query_results:
+            return db.query_results[0][0]
 
     def create_question_results(self):
         print('Creating QA Question Results Table from {0} Formstack data'.format(self.formstack.title()))

@@ -16,7 +16,7 @@ from threading import Thread
 
 from BI.data_warehouse.connector import Snowflake
 from automator_utilities import find_main_dir
-from models import Task
+from packages.task import Task
 
 
 class TaskRunner(Thread):
@@ -59,10 +59,11 @@ class TaskThreadPool:
 
 
 class Automator:
-    def __init__(self):
+    def __init__(self, test_task_id=None):
         """
         Automator Settings
         """
+        self.test_task_id = test_task_id
         # Database Object to use
         self.dw = Snowflake()
         self.dw.set_user('JDLAURET')
@@ -82,12 +83,18 @@ class Automator:
         self.TaskData = None
         # Separated Task Lists
         self.priority_queues = {}
-
+        self.number_of_queues = 0
+        self.task_test = False
         self.meta_data = {}
 
-        # Max number of threads to have running
-        self.max_task_num_threads = 7
-        self.task_pool = TaskThreadPool(self.max_task_num_threads)
+        if self.test_task_id:
+            self.task_test = True
+
+        else:
+            # Max number of threads to have running
+            self.max_task_num_threads = 7
+            self.task_pool = TaskThreadPool(self.max_task_num_threads)
+
 
     def set_database_table(self, table_name):
         """
@@ -99,10 +106,8 @@ class Automator:
     def _get_meta_data(self):
         query = 'SELECT * FROM {table}'.format(table=self.meta_data_table)
         self.dw.execute_query(query)
-        header = self.dw.query_columns
-        results = self.dw.query_results
-        MetaData = namedtuple('MetaData', ' '.join(x.lower() for x in header))
-        self.meta_data = MetaData._make(results[0])
+        MetaData = namedtuple('MetaData', ' '.join(x.lower() for x in self.dw.column_names))
+        self.meta_data = MetaData._make(self.dw.query_results[0])
 
     def _status_running(self):
         query = 'UPDATE {table} SET CURRENT_STATUS = \'Running\''.format(table=self.meta_data_table)
@@ -271,6 +276,7 @@ class Automator:
         if missing_priority or hours_since_last_update >= 1:
             priorities = PriorityOrganizer()
             priorities.find_priorities()
+            self.number_of_queues = priorities.number_of_queues + 1
             for task in self.task_objects.values():
                 priority = priorities.priority_queue.get(int(task.id))
                 setattr(task, 'priority', priority)
@@ -294,8 +300,8 @@ class Automator:
         """
         Loop through queue lists and add tasks to queue
         """
-        for queue_number in self.priority_queues.keys():
-            queue = self.priority_queues[queue_number]
+        for queue_number in range(self.number_of_queues):
+            queue = self.priority_queues[str(queue_number)]
             for task in queue:
                 self.task_pool.add_task(task)
             self.task_pool.wait_completion()
@@ -329,19 +335,30 @@ class Automator:
                 self.create_task_objects()
                 #  Create Task Priorities
                 self.check_priorities()
-                #  Sort Tasks into Lists
-                self.organize_tasks()
-                #  Place Python Tasks into the Queue
-                print('Evaluating Tasks')
-                self.run_task_queues()
-                self._update_last_run()
-                #  Sleep till next 5 minute interval 12:00, 12:05, etc
-                self.loop_sleep()
+
+                if not self.task_test:
+                    #  Sort Tasks into Lists
+                    self.organize_tasks()
+                    #  Place Python Tasks into the Queue
+                    print('Evaluating Tasks')
+                    self.run_task_queues()
+                    self._update_last_run()
+                    #  Sleep till next 5 minute interval 12:00, 12:05, etc
+                    self.loop_sleep()
+                else:
+                    self.test_task(self.test_task_id)
+                    break
 
             finally:
                 self.dw.close_connection()
 
+    def test_task(self, task_id):
+        task = self.task_objects.get(int(task_id))
+        task.set_to_testing()
+        task.run_task()
 
+
+# %% PriorityOrganizer
 class PriorityOrganizer(Automator):
     TaskInfo = namedtuple('TaskInfo', 'id dependents sorted')
 
@@ -351,6 +368,7 @@ class PriorityOrganizer(Automator):
         self.task_dict = {}
         self.sorted_tasks = {}
         self.priority_queue = {}
+        self.number_of_queues = 0
 
     def _get_task_list(self):
         query = '''
@@ -394,8 +412,12 @@ class PriorityOrganizer(Automator):
                             if dependent_sorted is not None:
                                 if not self.priority_queue.get(task_id):
                                     self.priority_queue[task_id] = self.priority_queue[dependent_id] + 1
+                                    if self.priority_queue[dependent_id] + 1 > self.number_of_queues:
+                                        self.number_of_queues = self.priority_queue[dependent_id] + 1
                                 elif self.priority_queue.get(task_id) <= self.priority_queue[dependent_id]:
                                     self.priority_queue[task_id] = self.priority_queue[dependent_id] + 1
+                                    if self.priority_queue[dependent_id] + 1 > self.number_of_queues:
+                                        self.number_of_queues = self.priority_queue[dependent_id] + 1
                                 complete_dependents = []
                                 for dependent in dependents:
                                     dependent_id = int(dependent)
@@ -410,6 +432,7 @@ class PriorityOrganizer(Automator):
         self._set_priority()
 
 
+# %% Run Automator
 if __name__ == '__main__':
     # Start Automator
     print('Automator 3 Starting')
