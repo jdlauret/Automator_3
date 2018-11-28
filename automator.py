@@ -95,14 +95,16 @@ class Automator:
         self.task_table_data = []
 
         # All Task Objects Store by Task ID
-        self.task_objects = {}
-
+        self.standard_tasks = {}
+        self.cycle_tasks = {}
         # Used for named tuple defined in _refresh_task_data
         self.TaskData = None
 
         # Queue information
+        self.cycle_queue = []
         self.priority_queues = {}
-        self.number_of_queues = 0
+        self.number_of_priority_queues = 0
+
 
         # Meta Data Storage
         self.meta_data = {}
@@ -334,12 +336,17 @@ class Automator:
             # Create TaskData named tuple
             task_data = self.TaskData._make(task)
 
+            standard_task = task_data.operational.lower() != 'cycle'
             # If the id key does no exist create key value pair in task_objects
-            if task_data.id not in self.task_objects.keys():
-                new_task = Task(self.TaskData._make(task), self.db_connection, working_dir=self.main_dir)
-                if new_task.operational.lower() == 'cycle':
-                    new_task.__setattr__('run_typer', 'cycle')
-                self.task_objects[task_data.id] = new_task
+            if task_data.id not in self.standard_tasks.keys() and standard_task:
+                new_task = Task(self.TaskData._make(task), self.db_connection,
+                                working_dir=self.main_dir)
+                self.standard_tasks[task_data.id] = new_task
+            if task_data.id not in self.cycle_tasks.keys() and not standard_task:
+                new_task = Task(self.TaskData._make(task), self.db_connection,
+                                working_dir=self.main_dir, run_type='Cycle')
+                setattr(new_task, 'priority', 0)
+                self.cycle_tasks[task_data.id] = new_task
 
     def _check_priorities(self):
         """
@@ -364,7 +371,7 @@ class Automator:
         hours_since_last_update = int((today - last_priority_update).seconds / 60 / 60)
 
         # Look at all Task object, check if priority value exists
-        for task in self.task_objects.values():
+        for task in self.standard_tasks.values():
             # If no priority value is set, raise missing priority flag
             if not getattr(task, 'priority', None):
                 missing_priority = True
@@ -379,10 +386,10 @@ class Automator:
             priorities.find_priorities()
 
             # Set the number of queues to generate
-            self.number_of_queues = priorities.number_of_queues + 1
+            self.number_of_priority_queues = priorities.number_of_queues + 1
 
             # Set priority on each task object
-            for task in self.task_objects.values():
+            for task in self.standard_tasks.values():
                 priority = priorities.priority_queue.get(int(task.id))
                 setattr(task, 'priority', priority)
 
@@ -395,11 +402,11 @@ class Automator:
         :param test_only: Put Task objects into Test Mode
                           if operational Test Only
         """
-        for task in self.task_objects.values():
+        for standard_task in self.standard_tasks.values():
             # Verify task has a data source
-            if task.data_source is not None:
+            if standard_task.data_source is not None:
                 # Get tasks assigned priority
-                priority = str(task.priority)
+                priority = str(standard_task.priority)
 
                 # Create queue if it does not exist
                 if priority not in self.priority_queues.keys():
@@ -410,17 +417,25 @@ class Automator:
 
                 # Put task objects into queue
                 if not test_only:
-                    priority_queue.append(task)
-                elif test_only and task.operational.lower() == 'test only':
-                    task.set_to_testing()
-                    priority_queue.append(task)
+                    priority_queue.append(standard_task)
+                elif test_only and standard_task.operational.lower() == 'test only':
+                    standard_task.set_to_testing()
+                    priority_queue.append(standard_task)
+
+        if not test_only:
+            for cycle_task in self.cycle_tasks.values():
+                self.cycle_queue.append(cycle_task)
 
     def _run_task_queues(self):
         """
         Loop through each task in a queue list and add task to queue
         """
-        print('Evaluating Tasks')
-        for queue_number in range(self.number_of_queues):
+        print('Running Cycle Tasks')
+        for cycle_task in self.cycle_queue:
+            self.task_pool.add_task(cycle_task)
+        self.task_pool.wait_completion()
+        print('Running Standard Tasks')
+        for queue_number in range(self.number_of_priority_queues):
             queue = self.priority_queues[str(queue_number)]
             if len(queue) > 0:
                 for task in queue:
@@ -447,7 +462,7 @@ class Automator:
         """
         print('Running Automator 3 - MODE: Task Test')
         # Get requested task
-        task = self.task_objects.get(int(task_id))
+        task = self.standard_tasks.get(int(task_id))
         print('Running Task: {id} - {name}'.format(id=task.id, name=task.name))
         # Set task to testing and run
         task.set_to_testing()
