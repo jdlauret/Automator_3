@@ -1,4 +1,4 @@
-set PYTHON_HOME=%~dp0\venv\Scripts
+set PYTHON_HOME=%C:\Anaconda3
 set PYTHON_NAME=%1.exe
 set AUTOMATOR_HOME=%C:\Automator_3_v1.0
 copy "%PYTHON_HOME%\python.exe" "%AUTOMATOR_HOME%\%PYTHON_NAME%"
