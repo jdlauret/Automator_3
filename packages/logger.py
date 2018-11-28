@@ -66,8 +66,9 @@ class Logger:
         #  Add object to error log
         self.task.dw.insert_into_table(self.error_table, log_line)
         self.task._get_error_log()
-        #  Save settings, Update Settings, Determine if status change necessary
-        self.qualify_to_disable()
+        if self.task.run_type.lower() != 'cycle':
+            #  Save settings, Update Settings, Determine if status change necessary
+            self.qualify_to_disable()
 
     def readable_error_log(self):
         """
