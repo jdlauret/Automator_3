@@ -370,10 +370,12 @@ class Task:
             self.run_requested = 'FALSE'
             run_requested = False
 
-        self.ready = all([self.dependents_run, recurrence_test, status_run]) or run_requested
-
-        if self.run_type.lower() == 'testing':
+        if self.run_type.lower() == 'testing' or self.run_type.lower() == 'cycle':
             self.ready = True
+        else:
+            self.ready = all([self.dependents_run, recurrence_test, status_run]) or run_requested
+
+
 
     def _execute_task(self):
         self._input()
