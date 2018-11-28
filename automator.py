@@ -532,7 +532,6 @@ class Automator:
                         # Update meta data status
                         self._status_sleeping()
 
-                        cycles += 1
                         print('Cycle {} Completed'.format(cycles))
 
                         # Sleep till next 5 minute interval 12:00, 12:05, etc
