@@ -23,6 +23,8 @@ class TaskConsole:
         elif self.task.run_type == 'Testing':
             print('    IN PROGRESS - Testing -', self.task.name)
 
+        elif self.task.run_type == 'Cycle':
+            print('    IN PROGRESS - Cycle -', self.task.name)
         else:
             if not self.task.last_run:
                 print('    FIRST RUN')
