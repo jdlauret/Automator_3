@@ -350,32 +350,29 @@ class Task:
 
     def _run_eval(self):
         self.ready = False
+        if self.run_type.lower() not in ('testing', 'cycle'):
+            self.dependents_run = self._dependency_check()
+            if self.logger.paused:
+                recurrence_test = recur_test_v2(self.last_attempt, 'Hourly')
+            elif self.logger.disabled:
+                recurrence_test = recur_test_v2(self.last_attempt, 'Daily')
+            else:
+                recurrence_test = recur_test_v2(self.last_run,
+                                                self.auto_recurrence,
+                                                hour=self.recurrence_hour if self.recurrence_hour else 0,
+                                                day=self.auto_recurrence_day if self.auto_recurrence_day else 'Monday')
+            status_run = self.operational.lower() in self.run_statuses
 
-        self.dependents_run = self._dependency_check()
-        if self.logger.paused:
-            recurrence_test = recur_test_v2(self.last_attempt, 'Hourly')
-        elif self.logger.disabled:
-            recurrence_test = recur_test_v2(self.last_attempt, 'Daily')
+            run_requested = self.run_requested.lower() == 'true'
+
+            if recurrence_test and run_requested:
+                self.update_run_requested()
+                self.run_requested = 'FALSE'
+                run_requested = False
+
+                self.ready = all([self.dependents_run, recurrence_test, status_run]) or run_requested
         else:
-            recurrence_test = recur_test_v2(self.last_run,
-                                            self.auto_recurrence,
-                                            hour=self.recurrence_hour if self.recurrence_hour else 0,
-                                            day=self.auto_recurrence_day if self.auto_recurrence_day else 'Monday')
-        status_run = self.operational.lower() in self.run_statuses
-
-        run_requested = self.run_requested.lower() == 'true'
-
-        if recurrence_test and run_requested:
-            self.update_run_requested()
-            self.run_requested = 'FALSE'
-            run_requested = False
-
-        if self.run_type.lower() == 'testing' or self.run_type.lower() == 'cycle':
             self.ready = True
-        else:
-            self.ready = all([self.dependents_run, recurrence_test, status_run]) or run_requested
-
-
 
     def _execute_task(self):
         self._input()
