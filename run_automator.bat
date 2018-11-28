@@ -1,1 +1,1 @@
-python-by-name automator "C:\Users\jonathan.lauret\Google Drive\Projects\Python Projects\Current Projects\Automator_3\automator.py"
+python-by-name automator "C:\Automator_3_v1.0\automator.py"
