@@ -457,9 +457,8 @@ class Automator:
         Run Task objects designed for testing each module.
         """
         print('Running Automator 3 - MODE: Module Testing')
+        self.dw.open_connection()
         try:
-            self.dw.open_connection()
-
             # Get Task Data
             self._refresh_task_data()
 
@@ -486,60 +485,63 @@ class Automator:
         cycles = 0
 
         mode_print = False
-        while True:
+        self.dw.open_connection()
+        try:
+            while True:
 
-            cycles += 1
-            print('Cycle {} Started'.format(cycles))
-            try:
-                self.dw.open_connection()
-                # Get Task Data
-                self._refresh_task_data()
+                cycles += 1
+                print('Cycle {} Started'.format(cycles))
+                try:
 
-                # Update meta data status
-                self._status_running()
-
-                # Backup Local Files
-                self.backup_files()
-
-                # Create Task Objects
-                self._create_task_objects()
-
-                # Create Task Priorities
-                self._check_priorities()
-
-                if self.task_test:
-
-                    # Start up requested task
-                    self.test_task(self.test_task_id)
-                    if not self.test_loop_count \
-                            or cycles == self.test_loop_count:
-                        break
-
-                else:
-                    if not mode_print:
-                        print('Running Automator 3 - MODE: Standard')
-                        mode_print = True
-                    # Sort Tasks into Lists
-                    self._setup_queues()
-
-                    # Setup Task queues and execute all tasks
-                    self._run_task_queues()
-
-                    # Update the last run in meta data
-                    self._update_last_run()
+                    # Get Task Data
+                    self._refresh_task_data()
 
                     # Update meta data status
-                    self._status_sleeping()
+                    self._status_running()
 
-                    # Sleep till next 5 minute interval 12:00, 12:05, etc
-                    self._sleep()
+                    # Backup Local Files
+                    self.backup_files()
 
-            except Exception as e:
-                raise e
+                    # Create Task Objects
+                    self._create_task_objects()
 
-            finally:
-                cycles += 1
-                print('Cycle {} Completed'.format(cycles))
+                    # Create Task Priorities
+                    self._check_priorities()
+
+                    if self.task_test:
+
+                        # Start up requested task
+                        self.test_task(self.test_task_id)
+                        if not self.test_loop_count \
+                                or cycles == self.test_loop_count:
+                            break
+
+                    else:
+                        if not mode_print:
+                            print('Running Automator 3 - MODE: Standard')
+                            mode_print = True
+                        # Sort Tasks into Lists
+                        self._setup_queues()
+
+                        # Setup Task queues and execute all tasks
+                        self._run_task_queues()
+
+                        # Update the last run in meta data
+                        self._update_last_run()
+
+                        # Update meta data status
+                        self._status_sleeping()
+
+                        cycles += 1
+                        print('Cycle {} Completed'.format(cycles))
+
+                        # Sleep till next 5 minute interval 12:00, 12:05, etc
+                        self._sleep()
+
+                except Exception as e:
+                    raise e
+
+        finally:
             self.dw.close_connection()
 
 
