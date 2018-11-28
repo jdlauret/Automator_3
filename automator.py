@@ -336,9 +336,10 @@ class Automator:
 
             # If the id key does no exist create key value pair in task_objects
             if task_data.id not in self.task_objects.keys():
-                self.task_objects[task_data.id] = Task(self.TaskData._make(task),
-                                                       self.db_connection,
-                                                       working_dir=self.main_dir)
+                new_task = Task(self.TaskData._make(task), self.db_connection, working_dir=self.main_dir)
+                if new_task.operational.lower() == 'cycle':
+                    new_task.__setattr__('run_typer', 'cycle')
+                self.task_objects[task_data.id] = new_task
 
     def _check_priorities(self):
         """
