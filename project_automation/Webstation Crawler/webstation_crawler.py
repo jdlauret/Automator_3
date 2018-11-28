@@ -32,7 +32,7 @@ MAIN_DIR = find_main_dir()
 DOWNLOAD_DIR = os.path.join(MAIN_DIR, 'downloads')
 
 # File path to Chrome Driver
-FF_DRIVER_PATH = r'C:\\Users\\jonathan.lauret\\Google Drive\\Projects\\Chrome Driver\geckodriver.exe'
+FF_DRIVER_PATH = r'C:\\Users\\jonathan.lauret\\Google Drive\\Projects\\Chrome Driver\\geckodriver.exe'
 
 # LOGIN_URL points to the login form
 LOGIN_URL = 'https://bu4595898.nicewfm.incontact.com'
@@ -47,7 +47,7 @@ TABLE_NAME = 'JDLAURET.T_ENPHASE_PORTAL_H'
 payload = {
     'username': {
         'html_name': '_58_login',
-        'value': os.environ.get('WEBSTATION_USERNAME')
+        'value': os.environ.get('MACK_EMAIL')
     },
     'password': {
         'html_name': '_58_password',
@@ -98,15 +98,12 @@ def rename_report(num):
         file_path = os.path.join(DOWNLOAD_DIR, file)
         if file == 'report.xls':
             os.rename(file_path, file_name)
-            print('Renamed {file} to {file_name}'.format(file=os.path.basename(file),
-                                                         file_name=os.path.basename(file_name)))
 
 
 def clear_downloads():
     """
     Delete all files in the download list
     """
-    print('Clearing Downloads Folder')
     file_list = os.listdir(DOWNLOAD_DIR)
     for file in file_list:
         if file != 'desktop.ini':
@@ -131,9 +128,6 @@ class PrimaryCrawler:
         self.current_line = 0
         self.skip = False
 
-        if testing:
-            print('Testing is active')
-
         # Define Options for Firefox
         options = webdriver.FirefoxOptions()
 
@@ -156,7 +150,6 @@ class PrimaryCrawler:
     def login(self):
         # Use Driver to login
         # Go to Login Page
-        print('Logging into {url}'.format(url=LOGIN_URL))
         self.DRIVER.get(LOGIN_URL)
 
         # Insert Username
@@ -178,12 +171,8 @@ class PrimaryCrawler:
         # Login to page
         self.login()
 
-        # Call URL
-        if testing:
-            print(self.DRIVER.current_url)
 
         # Go to Reports Page
-        print('Loading {url}'.format(url=REPORT_URL))
         self.DRIVER.get(REPORT_URL)
         WebDriverWait(self.DRIVER, self.delay) \
             .until(EC.presence_of_element_located((By.ID, '_supvreportsview_WAR_supvwebstationportlet_iframe')))
@@ -191,12 +180,10 @@ class PrimaryCrawler:
         self.DRIVER.switch_to.frame(self.DRIVER.find_element_by_id('_supvreportsview_WAR_supvwebstationportlet_iframe'))
         try:
             # Wait for the Today table to load and define it
-            print('Waiting for Today table to load')
             WebDriverWait(self.DRIVER, self.delay).until(EC.presence_of_element_located((By.ID, 'Today')))
             today_table = self.DRIVER.find_element_by_id('Today')
             new_table = []
             # Get the rows from the table
-            print('Finding most recent reports')
             rows = today_table.find_elements(By.TAG_NAME, 'tr')
 
             # Iterate through rows, find links and text and store them
@@ -226,7 +213,6 @@ class PrimaryCrawler:
             found_reports = 0
 
             # Iterate through rows again and click the 2 extracted links
-            print('Downloading most recent reports')
             for row in rows:
                 cols = row.find_elements(By.TAG_NAME, 'td')
                 for col in cols:
@@ -239,13 +225,9 @@ class PrimaryCrawler:
                             sleep(1.5)
                             # Wait for file to appear
                             while not os.path.isfile(os.path.join(DOWNLOAD_DIR, 'report.xls')):
-                                if testing:
-                                    print('Is File Sleep')
                                 sleep(1)
                             # Wait for .part file to disappear to verify download completed
                             while os.path.exists(os.path.join(DOWNLOAD_DIR, 'report.xls.part')):
-                                if testing:
-                                    print('Part File Exists')
                                 sleep(1)
                             sleep(1)
                             # Rename the files
@@ -253,14 +235,13 @@ class PrimaryCrawler:
 
             self.crawler_log['number_of_downloads'] = found_reports
         except Exception as e:
-            print(e)
+            raise e
         finally:
             # Shutdown the Crawler
             self.end_crawl()
 
     def end_crawl(self):
         # Close the Driver and upload last batch
-        print('Crawler Tasks Complete')
         self.DRIVER.quit()
 
 
@@ -283,13 +264,11 @@ class ProcessDownloads:
 
     def open_file(self):
         # Open the current workbook in Read Only then Process File
-        print('Opening Workbook: {wb}'.format(wb=os.path.basename(self.file_path)))
         self.current_wb = load_workbook(self.file_path)
         self.process_file()
 
     def process_file(self):
         # Get current Sheet
-        print('Opening Sheet: {sheet_name}'.format(sheet_name=self.sheet_name))
         current_sheet = self.current_wb.get_sheet_by_name(self.sheet_name)
 
         # Set Default Current Variables
@@ -330,7 +309,6 @@ class ProcessDownloads:
         agent_stop = True
 
         # Iterate through each row of the report
-        print('Parsing Sheet Data')
         self.file_log['row_count'] = current_sheet.max_row
         for i, row in enumerate(current_sheet.iter_rows()):
             # Set Current Row and reset keep flags
@@ -503,7 +481,6 @@ def convert_files():
             file_path = os.path.join(DOWNLOAD_DIR, file)
             new_file_name = file.replace('xls', 'xlsx')
             new_file_path = os.path.join(DOWNLOAD_DIR, new_file_name)
-            print('Converting {file} to .xlsx'.format(file=os.path.basename(file)))
             pyexcel.save_book_as(file_name=file_path, dest_file_name=new_file_path)
             files_converted += 1
 
@@ -518,9 +495,7 @@ def clear_last_14_days():
     DELETE FROM D_POST_INSTALL.T_WS_ACTIVITY_SCHEDULED
     WHERE TRUNC(SCHEDULED_START, 'day') >= DATEADD('day', -14, current_date)
     """
-    print('Clearing last 14 days of data in Actual Table')
     db.execute_query(clear_actual)
-    print('Clearing last 14 days of data in Scheduled Table')
     db.execute_query(clear_scheduled)
 
 
@@ -532,6 +507,7 @@ if __name__ == '__main__':
     db = Snowflake()
     db.set_user('JDLAURET')
     db.open_connection()
+    crawler = PrimaryCrawler()
     try:
         # Define Table Names
         actual_table = 'D_POST_INSTALL.T_WS_ACTIVITY_ACTUALS'
@@ -556,7 +532,7 @@ if __name__ == '__main__':
         clear_downloads()
 
         # Run Primary Crawler
-        crawler = PrimaryCrawler()
+
         crawler.run_crawler()
         log_file[date_string]['crawler'] = crawler.crawler_log
         save_json(log_file_path, log_file)
@@ -607,6 +583,8 @@ if __name__ == '__main__':
         except:
             log_file[date_string]['scheduled_table_update'] = False
             pass
+    except:
+        crawler.end_crawl()
     finally:
         db.close_connection()
     # End Script

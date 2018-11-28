@@ -192,13 +192,13 @@ def Testset(lines):
             for wrong in wrongs.split()]
 
 
-# spelltest(Testset(open('input/spell-testset1.txt')))  # Development set
-# spelltest(Testset(open('input/spell-testset2.txt')))  # Final test set
+# spelltest(Testset(open('_input/spell-testset1.txt')))  # Development set
+# spelltest(Testset(open('_input/spell-testset2.txt')))  # Final test set
 
 
 def test_corpus(filename):
     print("Testing " + filename)
-    spelltest(Testset(open('input/' + filename)))
+    spelltest(Testset(open('_input/' + filename)))
 
 
 # test_corpus('spell-testset1.txt')  # Development set

@@ -1,14 +1,10 @@
 import datetime as dt
 import os
-import pandas as pd
+
 import pyexcel
-from time import sleep
 from openpyxl import load_workbook, Workbook
-from oracle_bridge.oracle_bridge import update_table, execute_query
+from BI.data_warehouse.connector import Snowflake
 from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 
 # Directory Variables
 MAIN_DIR = os.getcwd()
@@ -25,7 +21,7 @@ LOGIN_URL = 'https://home-c20.incontact.com/inContact/Login.aspx?' \
 
 # REPORT_URL points to report page
 CONTACT_URL = 'https://home-c20.incontact.com/inContact/Manage/Reports/' \
-             'ContactDetail.aspx?isActiveContact=true&contactid={contact_id}'
+              'ContactDetail.aspx?isActiveContact=true&contactid={contact_id}'
 
 # MOVE PAYLOAD TO SEPARATE FILE WHEN TESTING IS COMPLETE
 payload = {
@@ -61,15 +57,12 @@ def rename_report(num):
         file_path = os.path.join(DOWNLOAD_DIR, file)
         if file == 'report.xls':
             os.rename(file_path, file_name)
-            print('Renamed {file} to {file_name}'.format(file=os.path.basename(file),
-                                                         file_name=os.path.basename(file_name)))
 
 
 def clear_downloads():
     """
     Delete all files in the download list
     """
-    print('Clearing Downloads Folder')
     file_list = os.listdir(DOWNLOAD_DIR)
     for file in file_list:
         file_path = os.path.join(DOWNLOAD_DIR, file)
@@ -88,9 +81,6 @@ class PrimaryCrawler:
         # Primary Items
         self.current_line = 0
         self.skip = False
-
-        if testing:
-            print('Testing is active')
 
         # Define Options for Firefox
         options = webdriver.FirefoxOptions()
@@ -114,7 +104,6 @@ class PrimaryCrawler:
     def login(self):
         # Use Driver to login
         # Go to Login Page
-        print('Logging into {url}'.format(url=LOGIN_URL))
         self.DRIVER.get(LOGIN_URL)
 
         # Insert Username
@@ -133,20 +122,9 @@ class PrimaryCrawler:
         # Login to page
         self.login()
 
-        if testing:
-            print(self.DRIVER.current_url)
-
         for contact in contact_ids:
             contact_url = CONTACT_URL.format(contact_id=contact)
-            print('Loading {url}'.format(url=contact_url))
             self.DRIVER.get(contact_url)
-
-            # try:
-            #     print('Waiting for Today table to load')
-            #     WebDriverWait(self.DRIVER, self.delay).until(EC.presence_of_element_located(
-            #         (By.ID, 'ctl00_PopupContentPlaceHolder_tcQAForms_tablActiveContactOptions_tab')))
-            # except Exception as e:
-            #     print(e)
             try:
                 self.DRIVER.find_element_by_id('ctl00_PopupContentPlaceHolder_tc'
                                                'QAForms_tablActiveContactOptions_tab').click()
@@ -161,7 +139,6 @@ class PrimaryCrawler:
 
     def end_crawl(self):
         # Close the Driver and upload last batch
-        print('Crawler Tasks Complete')
         self.DRIVER.close()
 
 
@@ -180,14 +157,12 @@ class ProcessDownloads:
 
     def open_file(self):
         # Open the current workbook in Read Only then Process File
-        print('Opening Workbook: {wb}'.format(wb=os.path.basename(self.file_path)))
         self.current_wb = load_workbook(self.file_path, read_only=True)
         self.process_file()
 
     def process_file(self):
         # Get current Sheet
-        print('Opening Sheet: {sheet_name}'.format(sheet_name=self.sheet_name))
-        current_sheet = self.current_wb.get_sheet_by_name(self.sheet_name)
+        current_sheet = self.current_wb[self.sheet_name]
 
         # Set Default Current Variables
         current_agent = ''
@@ -227,7 +202,6 @@ class ProcessDownloads:
         agent_stop = True
 
         # Iterate through each row of the report
-        print('Parsing Sheet Data')
         for i, row in enumerate(current_sheet.iter_rows()):
             # Set Current Row and reset keep flags
             current_row = i + 1
@@ -371,8 +345,6 @@ class ProcessDownloads:
                 ]
                 # Store Row
                 self.scheduled_data_set.append(scheduled_row)
-                if testing:
-                    print(scheduled_row)
 
             if keep_actual_data:
                 # Create row to store
@@ -385,15 +357,12 @@ class ProcessDownloads:
                 ]
                 # Store row
                 self.actual_data_set.append(actual_row)
-                if testing:
-                    print(actual_row)
 
         # Close the opened Workbook
         self.current_wb.close()
 
 
 def convert_files():
-
     file_list = os.listdir(DOWNLOAD_DIR)
     for file in file_list:
         if '.xlsx' not in file \
@@ -401,12 +370,10 @@ def convert_files():
             file_path = os.path.join(DOWNLOAD_DIR, file)
             new_file_name = file.replace('xls', 'xlsx')
             new_file_path = os.path.join(DOWNLOAD_DIR, new_file_name)
-            print('Converting {file} to .xlsx'.format(file=os.path.basename(file)))
             pyexcel.save_book_as(file_name=file_path, dest_file_name=new_file_path)
 
 
 def clear_last_14_days():
-
     clear_actual = """
     DELETE FROM MACK_DAMAVANDI.T_AGENT_ACTIVITY_ACTUALS
     WHERE TRUNC(ACTUAL_START) >= TRUNC(SYSDATE - 14) 
@@ -415,9 +382,7 @@ def clear_last_14_days():
     DELETE FROM MACK_DAMAVANDI.T_AGENT_ACTIVITY_SCHEDULED
     WHERE TRUNC(SCHEDULED_START) >= TRUNC(SYSDATE - 14)
     """
-    print('Clearing last 14 days of data in Actual Table')
     execute_query(clear_actual, credentials='Private')
-    print('Clearing last 14 days of data in Scheduled Table')
     execute_query(clear_scheduled, credentials='Private')
 
 

@@ -11,7 +11,7 @@ class TaskOutput:
         self.append = self.task.append
         self.SheetRange = self.task.SheetRange
         self.dynamic_name = self.task.dynamic_name
-        self.output_type = self.task.data_source
+        self.output_type = self.task.data_storage_type
         self.output_source_id = self.task.data_storage_id
         self.input_data = self.task.input_data
 
@@ -23,7 +23,7 @@ class TaskOutput:
         """
         self.current_function = 'create_range'
         self.current_action = 'Creating Range'
-        #  Get input data size attributes
+        #  Get _input data size attributes
         data_len = len(self.input_data)
         data_wid = max(len(x) for x in self.input_data)
 
@@ -63,15 +63,15 @@ class TaskOutput:
         try:
             for i, row in enumerate(self.input_data):
                 for j, col in enumerate(row):
-                    if isinstance(col, dt.datetime):
-                        if col.hour > 0 or col.minute > 0:
-                            self.input_data[i][j] = col.strftime('%m/%d/%Y %I:%M:%S %p')
+                    if isinstance(self.input_data[i][j], dt.datetime):
+                        if self.input_data[i][j].hour > 0 or self.input_data[i][j].minute > 0:
+                            self.input_data[i][j] = self.input_data[i][j].strftime('%m/%d/%Y %I:%M:%S %p')
                         else:
-                            self.input_data[i][j] = col.strftime('%m/%d/%Y')
-                    if isinstance(col, dt.date):
-                        self.input_data[i][j] = col.strftime('%m/%d/%Y')
-                    if isinstance(col, decimal.Decimal):
-                        self.input_data[i][j] = str(col)
+                            self.input_data[i][j] = self.input_data[i][j].strftime('%m/%d/%Y')
+                    if isinstance(self.input_data[i][j], dt.date):
+                        self.input_data[i][j] = self.input_data[i][j].strftime('%m/%d/%Y')
+                    if isinstance(self.input_data[i][j], decimal.Decimal):
+                        self.input_data[i][j] = str(self.input_data[i][j])
         except Exception as e:
             raise e
 
@@ -102,9 +102,10 @@ class TaskOutput:
 
     def _csv(self):
         try:
-            csv = CsvGenerator(self.input_data, self)
-            csv.create_csv()
-            self.task.file_name = csv.file_name
+            data_with_header = [self.task.input_data_header] + self.input_data
+            csv_gen = CsvGenerator(data_with_header, self.task)
+            csv_gen.create_csv()
+            self.task.file_name = csv_gen.file_name
             self.output_complete = True
         except Exception as e:
             raise e
@@ -121,10 +122,6 @@ class TaskOutput:
             raise e
 
     def set_output(self):
-        if self.dynamic_name is not None \
-                and (self.output_type.lower() == 'csv'
-                     or self.output_type.lower() == 'excel'):
-            self.task.create_dynamic_name()
 
         if self.output_type.lower() == 'csv':
             self._csv()

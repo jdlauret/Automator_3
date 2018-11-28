@@ -5,7 +5,13 @@ class TaskInput:
 
     def __init__(self, task):
         self.task = task
-        self.dw = self.task.dw
+        self.database = self.task.sql_database
+        if self.database:
+            if self.database.lower() == 'data warehouse':
+                self.dw = self.task.dw
+            elif self.database.lower() == 'luna':
+                self.dw = Postgres()
+                self.dw.login(os.environ.get('POSTGRES_HOST'))
         self.SheetRange = self.task.SheetRange
         self.input_type = self.task.data_source
         self.input_source_id = self.task.data_source_id
@@ -20,8 +26,6 @@ class TaskInput:
         """
         Read a SQL query stored in Google Drive
         """
-        self.current_function = 'read_query'
-        self.current_action = 'GDrive - Read Drive File'
         try:
             #  Open Google Drive and read the sql file
             self.query = GDrive().read_drive_file(self.input_source_id)
@@ -30,10 +34,9 @@ class TaskInput:
 
     def _multi_query_execution(self):
         """
-        Seperate a query using a semicolon ';'
+        Separate a query using a semicolon ';'
         Then execute queries in order
         """
-        self.current_function = '_multi_query_execution'
         multi_query_staging = self.query.split(';')
         for query in multi_query_staging:
             self.query = query
@@ -43,21 +46,19 @@ class TaskInput:
         """
         Execute a sql command
         """
-        self.current_function = '_execute_command'
-        self.current_action = 'SQL Command - Execute Command'
         try:
             self.dw.execute_sql_command(self.query)
         except Exception as e:
             raise e
 
     def _sql_query(self):
-        self.task.read_query()
-        if self.task.query:
+        self._read_query()
+        if self.query:
             try:
-                self.current_action = 'SQL Query - Execute Query'
-                self.dw.execute_query(self.task.query)
+                self.dw.execute_query(self.query)
 
                 self.input_data = self.dw.query_results
+                # todo: self.input_data_header isn't setting the self.task.input_data_header, so CsvGenerator isn't receiving the header info
                 self.input_data_header = self.dw.column_names
                 self.input_complete = True
             except Exception as e:
@@ -74,17 +75,17 @@ class TaskInput:
             else:
                 self._execute_command()
             # Mark task as complete
-            self.task_complete = True
+            self.input_complete = True
         except Exception as e:
             raise e
 
     def _python_script(self):
         try:
-            p_script = PythonScript(self)
+            p_script = PythonScript(self.task)
             p_script.run_script()
             #  If successful run is logged then mark task complete
-            self.task_complete = p_script.successful_run
-            if not self.task_complete:
+            self.input_complete = p_script.successful_run
+            if not self.input_complete:
                 #  If task complete is false log the Return Code and Stream data, then log error
                 error = 'Return Code: {rc} Stream Data: {stream_data}'.format(rc=p_script.rc,
                                                                               stream_data=p_script.stream_data)
@@ -104,7 +105,6 @@ class TaskInput:
             else:
                 self.gsheet_range = self.SheetRange()
             self._size_gsheet_input_data()
-            self.current_function = 'get_input_data'
             self.input_complete = True
         except Exception as e:
             raise e
@@ -123,7 +123,6 @@ class TaskInput:
             self.input_data[i] = row[self.gsheet_range.start_col:self.gsheet_range.end_col]
 
     def _csv(self):
-        self.current_action = 'Input - Read CSV'
         #  Create file name
         if '.csv' not in self.task.file:
             self.csv_name = self.task.file_name + '.csv'
@@ -134,6 +133,7 @@ class TaskInput:
         try:
             #  Open csv and store data
             self._read_csv()
+            self.input_complete = True
         except Exception as e:
             raise e
 
@@ -147,25 +147,31 @@ class TaskInput:
             self.input_data.append(row)
 
     def get_input(self):
+        try:
+            if self.input_type.lower() == 'sql':
+                #  If data source is SQL.  Execute SQL query and return results to input_data
+                self._sql_query()
 
-        if self.input_type.lower() == 'sql':
-            #  If data source is SQL.  Execute SQL query and return results to input_data
-            self._sql_query()
+            elif self.input_type.lower() == 'sql command':
+                #  If data source is a SQL command
+                self._sql_command()
 
-        elif self.input_type.lower() == 'sql command':
-            #  If data source is a SQL command
-            self._sql_command()
+            elif self.input_type.lower() == 'python':
+                #  If data source is python, execute the python script
+                self._python_script()
 
-        elif self.input_type.lower() == 'python':
-            #  If data source is python, execute the python script
-            self._python_script()
+            elif self.input_type.lower() == 'csv':
+                self._csv()
 
-        elif self.input_type.lower() == 'csv':
-            self._csv()
+            elif self.input_type.lower() == 'dialer':
+                #  TODO Create Dialer Handling
+                pass
 
-        elif self.input_type.lower() == 'dialer':
-            #  TODO Create Dialer Handling
-            pass
-
-        elif self.input_type.lower() == 'google sheets':
-            self._google_sheet()
+            elif self.input_type.lower() == 'google sheets':
+                self._google_sheet()
+        except Exception as e:
+            raise e
+        finally:
+            if self.database:
+                if self.database.lower() == 'luna':
+                    self.dw.close_connection()

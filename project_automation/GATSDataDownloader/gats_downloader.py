@@ -264,7 +264,7 @@ if __name__ == '__main__':
         },
         'password': {
             'html_name': 'password',
-            'value': os.environ.get('GATS_PASSWORD')
+            'value': os.environ.get('GATS_PASS')
         },
         'button': {
             'id': 'submitLogin'
@@ -273,8 +273,11 @@ if __name__ == '__main__':
 
     clear_downloads()
 
-    crawler = PrimaryCrawler(payload, 'chrome')
-    crawler.run_crawler()
+    try:
+        crawler = PrimaryCrawler(payload, 'chrome')
+        crawler.run_crawler()
 
-    processor = FileProcessor(crawler.last_five_months)
-    processor.process_new_files()
+        processor = FileProcessor(crawler.last_five_months)
+        processor.process_new_files()
+    except Exception:
+        crawler.end_crawl()

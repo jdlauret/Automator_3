@@ -81,7 +81,7 @@ def has_numbers(input_string):
 
 def key_builder(word_num):
     """
-    generates a key for an object based on the input
+    generates a key for an object based on the _input
     :param word_num: the number of word(s) being created
     :return: return the concatenated string
     """

@@ -15,27 +15,17 @@ TABLE_NAME = 'D_POST_INSTALL.T_WO_TELOGIS'
 
 
 def telogis_data_from_excel(file_path):
-    print('Converting CSV to Data Frame')
-    df = pd.read_csv(file_path)
-    print('Converting \'12:00:00 AM\' to NaN')
+    df = pd.read_csv(file_path, low_memory=False)
     df.loc[df['WO_TELOGIS_ARRIVAL'] == '12:00:00 AM', 'WO_TELOGIS_ARRIVAL'] = np.nan
     df.loc[df['WO_TELOGIS_DEPARTURE'] == '12:00:00 AM', 'WO_TELOGIS_DEPARTURE'] = np.nan
     df.loc[df['WO_WINDOW_FINISH'] == '1/0/00 0:00', 'WO_WINDOW_FINISH'] = np.nan
-    print('Converting Zip Codes')
     df['WO_ZIP_CODE'] = df['WO_ZIP_CODE'].astype(str).str.zfill(5)
-    print('Converting Window Start from string to datetime')
     df['WO_WINDOW_START'] = pd.to_datetime(df['WO_WINDOW_START'])
-    print('Converting Window Finish from string to datetime')
     df['WO_WINDOW_FINISH'] = pd.to_datetime(df['WO_WINDOW_FINISH'])
-    print('Converting Assignment Start from string to datetime')
     df['WO_ASSIGNMENT_START'] = pd.to_datetime(df['WO_ASSIGNMENT_START'])
-    print('Converting Assignment Finish from string to datetime')
     df['WO_ASSIGNMENT_FINISH'] = pd.to_datetime(df['WO_ASSIGNMENT_FINISH'])
-    print('Converting Telogis Arrival from string to datetime')
     df['WO_TELOGIS_ARRIVAL'] = pd.to_datetime(df['WO_TELOGIS_ARRIVAL'])
-    print('Converting Telogis Departure from string to datetime')
     df['WO_TELOGIS_DEPARTURE'] = pd.to_datetime(df['WO_TELOGIS_DEPARTURE'])
-    print('Converting Week from string to date')
     df['WO_WEEK'] = pd.to_datetime(df['WO_WEEK'])
     df = df.where((pd.notnull(df)), None)
     return df
@@ -45,7 +35,6 @@ if __name__ == '__main__':
     db = Snowflake()
     db.set_user('JDLAURET')
 
-    print("Downloading Telogis Data")
     gd = GDrive()
     file = gd.download_file(FILE_ID, FILE_NAME)
     new_file = FILE_NAME.replace('.csv', '') + '_fixed.csv'

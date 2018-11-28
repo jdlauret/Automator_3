@@ -389,11 +389,11 @@ if __name__ == '__main__':
     payload = {
         'username': {
             'html_name': 'credentials-email',
-            'value': os.environ.get('LD_USERNAME')
+            'value': os.environ.get('JD_EMAIL')
         },
         'password': {
             'html_name': 'credentials-password',
-            'value': os.environ.get('LD_PASSWORD')
+            'value': os.environ.get('LD_PASS')
         },
         'button': {
             'class_name': 'start-button'
@@ -402,18 +402,21 @@ if __name__ == '__main__':
 
     TABLE_NAME = 'D_POST_INSTALL.T_LEASE_DIMENSION'
 
-    pc = PrimaryCrawler('chrome', testing=testing)
-    pc.run_crawler()
-
-    db = Snowflake()
-    db.set_user('JDLAURET')
     try:
-        db.open_connection()
-        for file in os.listdir(DOWNLOAD_DIR):
-            if '.csv' in file and file not in read_process_file():
-                current_file = CsvProcessor(os.path.join(DOWNLOAD_DIR, file))
-                current_file.process_file()
-                db.insert_into_table(TABLE_NAME, current_file.data, header_included=True)
-                write_process_file(file)
+        pc = PrimaryCrawler('chrome', testing=testing)
+        pc.run_crawler()
+
+        db = Snowflake()
+        db.set_user('JDLAURET')
+        try:
+            db.open_connection()
+            for file in os.listdir(DOWNLOAD_DIR):
+                if '.csv' in file and file not in read_process_file():
+                    current_file = CsvProcessor(os.path.join(DOWNLOAD_DIR, file))
+                    current_file.process_file()
+                    db.insert_into_table(TABLE_NAME, current_file.data, header_included=True)
+                    write_process_file(file)
+        finally:
+            db.close_connection()
     finally:
-        db.close_connection()
+        pc.end_crawl()

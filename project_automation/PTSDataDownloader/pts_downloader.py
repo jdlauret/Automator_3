@@ -272,7 +272,7 @@ if __name__ == '__main__':
         },
         'password': {
             'html_name': 'txtPwd',
-            'value': os.environ.get('PTS_PASSWORD')
+            'value': os.environ.get('PTS_PASS')
         },
         'button': {
             'id': 'ctl00_cphBody_ucLogin1_rbLogin_input'
@@ -280,9 +280,11 @@ if __name__ == '__main__':
     }
 
     clear_downloads()
+    try:
+        crawler = PrimaryCrawler(payload, 'chrome')
+        crawler.run_crawler()
 
-    crawler = PrimaryCrawler(payload, 'chrome')
-    crawler.run_crawler()
-
-    processor = FileProcessor(crawler.quarter_year_list)
-    processor.process_new_files()
+        processor = FileProcessor(crawler.quarter_year_list)
+        processor.process_new_files()
+    except:
+        crawler.end_crawl()

@@ -69,27 +69,22 @@ def weekly_recurrence_date(recurrence_day):
         return this_week_recurrence_date
 
 
-def recur_test(object):
+def recur_test(task_object):
     now = dt.datetime.now()
     # Get Last Run Date Time
-    last_run_dt = object.last_run
+    last_run_dt = task_object.last_run
     # If Last Run Datetime is not present it represents the first time
     # the task has been run and should simply just run
-    if inspect.isclass(object):
-        if object.logger.paused:
-            if object.last_attempt.date() == now.date() \
-                    and object.last_attempt.hour == now.hour:
-                return False
 
     if last_run_dt is None:
         return True
 
     # Get recurrence rate
-    recurrence_rate = object.auto_recurrence
+    recurrence_rate = task_object.auto_recurrence
 
     # Get recurrence hour
     # If recurrence hour is None set to 0
-    recurrence_hour = object.recurrence_hour
+    recurrence_hour = task_object.recurrence_hour
     if recurrence_hour is None:
         recurrence_hour = 0  # Default Midnight
 
@@ -97,19 +92,19 @@ def recur_test(object):
 
     # Get Recurrence Day
     # If Recurrence Day is None set to Monday
-    recurrence_day = object.auto_recurrence_day
+    recurrence_day = task_object.auto_recurrence_day
     if recurrence_day is None:
         recurrence_day = 'Monday'  # Default Monday
 
     try:
-        recurrence_day_of_month = object.recurrence_day_of_month
+        recurrence_day_of_month = task_object.recurrence_day_of_month
     except:
         recurrence_day_of_month = None
     if not recurrence_day_of_month:
         recurrence_day_of_month = 1  # Default first of month
 
     # Get Date for recurrence day of the week
-    recurrence_date = dt.datetime.combine(weekly_recurrence_date(recurrence_day), dt.time(0))
+
 
     current_day = now - dt.timedelta(minutes=now.minute) \
                   - dt.timedelta(seconds=now.second) \
@@ -126,16 +121,12 @@ def recur_test(object):
             return True
 
     elif recurrence_rate.lower() == 'daily':
-        test_4 = last_run_day
-        test_3 = current_day
-        test_2 = current_day.date()
-        test = (current_day.date() - last_run_day.date()).days
         if (current_day.date() - last_run_day.date()).days >= 1 \
                 and recurrence_hour <= now.hour:
             return True
 
     elif recurrence_rate.lower() == 'weekly':
-
+        recurrence_date = dt.datetime.combine(weekly_recurrence_date(recurrence_day), dt.time(0))
         if last_run_dt < recurrence_date \
                 and recurrence_hour <= now.hour:
             return True
@@ -143,6 +134,47 @@ def recur_test(object):
     elif recurrence_rate.lower() == 'monthly':
 
         if diff_month(now, last_run_dt) >= 1 \
+                and now.day <= recurrence_day_of_month:
+            return True
+
+    return False
+
+
+def recur_test_v2(last_run, rate, hour=0, day='Monday', day_of_month=1):
+
+    if last_run is None:
+        return True
+
+    now = dt.datetime.now()
+
+    recurrence_rate = rate
+    recurrence_hour = hour
+    recurrence_day = day
+    recurrence_day_of_month = day_of_month
+
+    if recurrence_rate.lower() == 'hourly':
+        now = now.replace(microsecond=0, second=0, minute=0)
+        last_run_at = last_run.replace(microsecond=0, second=0, minute=0)
+        if last_run_at < now:
+            return True
+
+    elif recurrence_rate.lower() == 'daily':
+        days_passed = (now - last_run).days
+
+        if days_passed >= 1 \
+                and recurrence_hour <= now.hour:
+            return True
+
+    elif recurrence_rate.lower() == 'weekly':
+        # Get Date for recurrence day of the week
+        recurrence_date = dt.datetime.combine(weekly_recurrence_date(recurrence_day), dt.time(0))
+
+        if last_run < recurrence_date \
+                and recurrence_hour <= now.hour:
+            return True
+
+    elif recurrence_rate.lower() == 'monthly':
+        if diff_month(now, last_run) >= 1 \
                 and now.day <= recurrence_day_of_month:
             return True
 

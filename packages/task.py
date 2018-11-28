@@ -1,9 +1,7 @@
-import decimal
+from BI.data_warehouse import Snowflake, SnowflakeV2, SnowflakeConnectionHandlerV2
+from BI.google import GDrive
 
-from BI.data_warehouse.connector import Snowflake
-from BI.google.gdrive import GDrive
-from BI.google.gsheets import GSheets, range_builder
-
+from packages.IO import TaskInput, TaskOutput, Upload, TaskConsole
 from . import *
 
 
@@ -12,19 +10,23 @@ class Task:
     SheetRange = collections.namedtuple('SheetRange', 'start_row start_col end_row end_col')
     SheetRange.__new__.__defaults__ = (2, 1, 0, 0)
 
-    def __init__(self, task_data, db_table='D_POST_INSTALL.T_AUTO_TASKS',
-                 run_type='Automated', working_dir=None):
+    def __init__(self, task_data, connection, db_table='D_POST_INSTALL.T_AUTO_TASKS',
+                 run_type='Automated', working_dir=None,):
         """
         Task object used by Automator 3
-        :param task_line: The line from the data table containing all the instructions for the task
-        :param task_header: The column headers used to help find the items in the task line
+        :param task_data: A name tuple containing the task data from the task table
         :param db_table: The table where the task data is stored
         :param run_type: Default to Automated, behavior changed for debugging if Testing used instead
         :param working_dir: The App's home directory
         """
         #  Create a Snowflake Connection
-        self.dw = Snowflake()
+        self.db_connection = connection
+        self.dw = SnowflakeV2(self.db_connection)
         self.dw.set_user('JDLAURET')
+
+        # Console Output
+        self.console = None
+
         self.task_data = task_data
         self.db_table = db_table
         self.run_type = run_type
@@ -32,10 +34,7 @@ class Task:
         self.ready = False
         #  All of the statuses that should stop the task from working
         #  These are ignored if run_type is set to Testing
-        self.run_statuses = [
-            'operational',
-            'paused',
-        ]
+
         if run_type == 'Automated':
             self.DependentData = collections.namedtuple('DependentData', ','.join(self.task_data._fields))
         self.dynamic_name = None
@@ -78,9 +77,9 @@ class Task:
         #  Create Task Logger object
         self.logger = None
         self.dependents_run = False
-
-    def update_settings(self, settings):
-        self.settings = settings
+        self.run_statuses = ['operational', 'paused', 'disabled']
+        self.require_output = ['sql', 'google sheets',]
+        self.require_upload = ['csv', 'excel',]
 
     def set_to_testing(self):
         self.run_type = 'Testing'
@@ -102,10 +101,13 @@ class Task:
         Assign changes to the changed attributes
         """
         self.current_function = '_refresh_attributes'
-        query = 'SELECT * FROM {table} T WHERE T.ID = %s'.format(table=self.db_table)
+        query = 'SELECT * FROM {table} T WHERE T.ID = {id}'.format(table=self.db_table, id=self.id)
         if self.id is not None:
             try:
-                self.dw.execute_query(query, bindvars=[self.id])
+                if self.dw.connection.connection:
+                    if self.dw.connection.connection.is_closed():
+                        self.dw.open_connection()
+                self.dw.execute_query(query)
                 self.task_table_column_names = self.dw.column_names
                 self._clean_task_data_header()
                 TaskData = collections.namedtuple('TaskData', ' '.join(self.task_table_column_names))
@@ -121,13 +123,16 @@ class Task:
                     super().__setattr__(name, value)
             except AttributeError:
                 super().__setattr__(name, value)
-        #  Update logger object with new attribute data
+        # Refresh error log data
         self._get_error_log()
+        #  Update logger object with new attribute data
         self.logger.update_task_data(self)
+        # Create Console class
+        self.console = TaskConsole(self)
 
     def create_attributes(self):
         """
-        Inital attribute setup
+        Initial attribute setup
         Task header used to create attribute names and matching task line used for the attribute value
         """
         self.current_function = 'create_attributes'
@@ -145,6 +150,8 @@ class Task:
         ErrorLog = collections.namedtuple('ErrorLog', ' '.join(x.lower() for x in self.dw.column_names))
         for row in self.dw.query_results:
             error = ErrorLog._make(row)
+            if error.run_type is None:
+                error = error._replace(run_type='')
             self.error_log.append(error)
 
     def _log_error(self, error):
@@ -152,58 +159,7 @@ class Task:
         Send error data to Logger object
         :param error: The error to log
         """
-        if self.run_type != 'Testing':
-            self.logger.log_error(self.current_function, self.current_action, error)
-
-    def read_query(self):
-        """
-        Read a SQL query stored in Google Drive
-        """
-        self.current_function = 'read_query'
-        self.current_action = 'GDrive - Read Drive File'
-        try:
-            #  Open Google Drive and read the sql file
-            self.query = GDrive().read_drive_file(self.data_source_id)
-        except Exception as e:
-            #  Log Exception thrown
-            self._log_error(e)
-
-    def create_range(self):
-        """
-        Create an A1 style range for use in Google Sheets or Excel
-        """
-        self.current_function = 'create_range'
-        self.current_action = 'Creating Range'
-        #  Get input data size attributes
-        data_len = len(self.input_data)
-        data_wid = max(len(x) for x in self.input_data)
-
-        #  If Data Storage Type is Google Sheets get the row count of the sheet for clearing purposes
-        if self.data_storage_type.lower() == 'google sheets':
-            row_count = GSheets(self.data_storage_id).get_row_count(self.wb_sheet_name)
-            #   If no end row provided use row count for clear range
-            if self.wb_end_row is not None:
-                self.wb_end_row = int(self.wb_end_row)
-            else:
-                self.wb_end_row = row_count
-        else:
-            #  If no end row provided use data size to determine the end row
-            if self.wb_end_row is not None:
-                self.wb_end_row = int(self.wb_end_row)
-            else:
-                self.wb_end_row = data_len + (self.wb_start_row - 1)
-
-        #  If no end column provided use the data width to determine the column
-        if self.wb_end_column is not None:
-            self.wb_end_column = int(self.wb_end_column)
-        else:
-            self.wb_end_column = data_wid + (self.wb_start_column - 1)
-
-        #  Assign all ranges
-        self.range_start = range_builder(self.wb_start_row, self.wb_start_column)
-        self.range_end = range_builder(self.wb_end_row, self.wb_end_column)
-        self.range_name = range_builder(self.wb_start_row, self.wb_start_column,
-                                        end_row=self.wb_end_row, end_col=self.wb_end_column)
+        self.logger.log_error(self.current_function, self.current_action, error)
 
     def download_file(self, id, file_name, file_location):
         """
@@ -223,39 +179,6 @@ class Task:
         if self.file_name in os.listdir(self.file_storage):
             return True
         return False
-
-    def _execute_command(self):
-        """
-        Execute a sql command
-        """
-        self.current_function = '_execute_command'
-        self.current_action = 'SQL Command - Execute Command'
-        try:
-            self.dw.execute_sql_command(self.query)
-        except Exception as e:
-            #  Log Thrown Exception
-            self._log_error(e)
-            raise e
-
-    def _multi_query_execution(self):
-        """
-        Separate a query using a semicolon ';'
-        Then execute queries in order
-        """
-        self.current_function = '_multi_query_execution'
-        multi_query_staging = self.query.split(';')
-        for query in multi_query_staging:
-            self.query = query
-            self._execute_command()
-
-    def _read_csv(self):
-        """
-        Open a csv and save the data as input_data
-        """
-        self.function_name = '_read_csv'
-        reader = csv.reader(os.path.join(self.downloads, self.csv_name), dialect='excel')
-        for row in reader:
-            self.input_data.append(row)
 
     def create_dynamic_name(self):
         """
@@ -280,28 +203,7 @@ class Task:
                              + ' ' \
                              + file_name + file_extension
 
-    def _prep_data_for_gsheets(self):
-        """
-        Convert data in input_data to Json Serializable values
-        """
-        self.current_function = '_prep_data_for_gsheets'
-        self.current_action = 'Prepping data for Google Sheets'
-        try:
-            for i, row in enumerate(self.input_data):
-                for j, col in enumerate(row):
-                    if isinstance(col, dt.datetime):
-                        if col.hour > 0 or col.minute > 0:
-                            self.input_data[i][j] = col.strftime('%m/%d/%Y %I:%M:%S %p')
-                        else:
-                            self.input_data[i][j] = col.strftime('%m/%d/%Y')
-                    if isinstance(col, dt.date):
-                        self.input_data[i][j] = col.strftime('%m/%d/%Y')
-                    if isinstance(col, decimal.Decimal):
-                        self.input_data[i][j] = str(col)
-        except Exception as e:
-            self._log_error(e)
-
-    def _check_input_data(self):
+    def _verify_input_data(self):
         if not self.input_data:
             #  If no data is returned, check to see if this is an error
             #  and log error if needed and then email the task owner
@@ -317,233 +219,8 @@ class Task:
             else:
                 self.task_complete = True
 
-    def _size_gsheet_input_data(self):
-        self.current_function = '_size_gsheet_input_data'
-        self.current_action = 'Input - Gsheet Sizing Data'
-        if not self.gsheet_range:
-            self.gsheet_range = self.SheetRange
-        if not all(x for x in self.gsheet_range._asdict().items()):
-            del self.input_data[0]
-        if self.gsheet_range.start_row:
-            self.gsheet_range = self.gsheet_range._replace(start_row=self.gsheet_range.start_row - 1)
-        if self.gsheet_range.start_col:
-            self.gsheet_range = self.gsheet_range._replace(start_col=self.gsheet_range.start_col - 1)
-        self.input_data = self.input_data[self.gsheet_range.start_row:self.gsheet_range.end_row]
-        for i, row in enumerate(self.input_data):
-            self.input_data[i] = row[self.gsheet_range.start_col:self.gsheet_range.end_col]
-
-    def _sql_query_input(self):
-        self.read_query()
-        if self.query:
-            try:
-                self.current_action = 'SQL Query - Execute Query'
-                self.dw.execute_query(self.query)
-
-                self.input_data = self.dw.query_results
-                self.input_data_header = self.dw.column_names
-                self.input_complete = True
-                self._check_input_data()
-            except Exception as e:
-                #  Log any exception thrown
-                self._log_error(e)
-
-    def _sql_command_input(self):
-        #  Check if multiple commands are present
-        #  Execute all commands
-        self.read_query()
-        try:
-            query_count = self.query.count(';')
-            if query_count > 1:
-                self._multi_query_execution()
-            else:
-                self._execute_command()
-            # Mark task as complete
-            self.task_complete = True
-        except Exception as e:
-            #  Log any exception thrown
-            self._log_error(e)
-
-    def _python_script_input(self):
-        self.current_action = 'Python - Run Script'
-        try:
-            p_script = PythonScript(self)
-            p_script.run_script()
-            #  If successful run is logged then mark task complete
-            self.task_complete = p_script.successful_run
-            if not self.task_complete:
-                #  If task complete is false log the Return Code and Stream data, then log error
-                error = 'Return Code: {rc} Stream Data: {stream_data}'.format(rc=p_script.rc,
-                                                                              stream_data=p_script.stream_data)
-                self._log_error(error)
-        except Exception as e:
-            #  Log and exception thrown
-            self._log_error(e)
-
-    def _csv_input(self):
-        self.current_action = 'Input - Read CSV'
-        #  Create file name
-        if '.csv' not in self.file:
-            self.csv_name = self.file_name + '.csv'
-        else:
-            self.csv_name = self.file_name
-        #  Download file
-        self.download_file(self.data_source_id, self.name, self.downloads)
-        try:
-            #  Open csv and store data
-            self._read_csv()
-        except Exception as e:
-            #  Log any exception thrown
-            self._log_error(e)
-
-    def _csv_output(self):
-        try:
-            self.current_function = 'set_output_data'
-            self.current_action = 'Output - Create CSV'
-            csv = CsvGenerator(self.input_data, self)
-            csv.create_csv()
-            self.file_name = csv.file_name
-            self.output_complete = True
-        except Exception as e:
-            self._log_error(e)
-
-    def _google_sheet_input(self):
-        self.current_action = 'Input - Init GSheets'
-        try:
-            gs = GSheets(self.data_source_id)
-            gs.set_active_sheet(self.wb_sheet_name)
-            gs.get_sheet_data()
-            self.input_data = gs.results
-            if any([self.wb_start_row, self.wb_start_column, self.wb_end_row, self.wb_end_column]):
-                self.gsheet_range = self.SheetRange(self.wb_start_row, self.wb_start_column,
-                                                    self.wb_end_row, self.wb_end_column)
-            else:
-                self.gsheet_range = self.SheetRange()
-            self._size_gsheet_input_data()
-            self.current_function = 'get_input_data'
-            self.input_complete = True
-            self._check_input_data()
-        except Exception as e:
-            #  Log and exception thrown
-            self._log_error(e)
-
-    def _google_sheet_output(self):
-        self._prep_data_for_gsheets()
-        try:
-            self.current_function = 'set_output_data'
-            self.current_action = 'Output - Init Gsheets'
-            gs = GSheets(self.data_storage_id)
-            gs.set_active_sheet(self.wb_sheet_name)
-            self.gsheet_range = self.SheetRange(self.wb_start_row, self.wb_start_column,
-                                                self.wb_end_row, self.wb_end_column)
-            gs.update_sheet(self.input_data, range_data=self.gsheet_range, append=self.append)
-            self.task_complete = True
-        except Exception as e:
-            self._log_error(e)
-
-    def _excel_output(self):
-        if self.data_storage_id:
-            self.download_file(self.data_storage_id, self.file_name, self.file_storage)
-        self.create_range()
-        try:
-            self.current_function = 'set_output_data'
-            self.current_action = 'Output - Excel Init'
-            excel = ExcelGenerator(self.input_data, self.file_name, self.wb_sheet_name,
-                                   self.range_name, file_path=self.file_storage)
-            self.current_action = 'Output - Create Excel Workbook'
-            excel.create_workbook()
-            self.file_name = excel.file_name
-            self.output_complete = True
-        except Exception as e:
-            self._log_error(e)
-
-    def get_input_data(self):
-        """
-        Check Data Source and execute task type
-        """
-        self.current_function = 'get_input_data'
-        #  Log start of input action
-        input_time_start = dt.datetime.now()
-
-        if self.data_source.lower() == 'sql':
-            #  If data source is SQL.  Execute SQL query and return results to input_data
-            self._sql_query_input()
-
-        elif self.data_source.lower() == 'sql command':
-            #  If data source is a SQL command
-
-            self._sql_command_input()
-
-        elif self.data_source.lower() == 'python':
-            #  If data source is python, execute the python script
-            self._python_script_input()
-
-        elif self.data_source.lower() == 'csv':
-            self._csv_input()
-
-        elif self.data_source.lower() == 'dialer':
-            self.current_action = 'Input - Read Dialer'
-            #  TODO Create Dialer Handling
-            pass
-
-        elif self.data_source.lower() == 'google sheets':
-            self._google_sheet_input()
-
-        #  Create input time log
-        self.input_time = (dt.datetime.now() - input_time_start).seconds
-
-    def set_output_data(self):
-        self.current_function = 'set_output_data'
-        output_time_start = dt.datetime.now()
-
-        if self.dynamic_name is not None \
-                and (self.data_storage_type.lower() == 'csv'
-                     or self.data_storage_type.lower() == 'excel'):
-            self.create_dynamic_name()
-
-        if self.input_complete:
-            if self.data_storage_type.lower() == 'csv':
-                self._csv_output()
-
-            elif self.data_storage_type.lower() == 'excel':
-                self._excel_output()
-
-            elif self.data_storage_type.lower() == 'google sheets':
-                self._google_sheet_output()
-
-            elif self.data_storage_type.lower() == 'data warehouse':
-                self.current_action = 'Output - Insert Data Warehouse'
-                try:
-                    if self.data_source.lower() == 'csv':
-                        self.dw.insert_csv_into_table(self.data_storage_id, self.downloads, self.csv_name)
-                    else:
-                        self.dw.insert_into_table(self.data_storage_id, self.input_data,
-                                                  overwrite=not self.append, _meta_data_col=self.insert_timestamp)
-                    self.task_complete = True
-                except Exception as e:
-                    self._log_error(e)
-            self.output_time = (dt.datetime.now() - output_time_start).seconds
-
-    def upload_files(self):
-        self.current_function = 'upload_files'
-        upload_time_start = dt.datetime.now()
-        if self.storage_type == 'Google Drive':
-            for file in os.listdir(self.file_storage):
-                if file == self.file_name:
-                    try:
-                        self.current_action = 'Upload File'
-                        drive = GDrive()
-                        file_path = self.file_storage
-                        drive.upload_file(self.file_name,
-                                          file_path,
-                                          self.storage_id,
-                                          replace_existing=True)
-                        self.task_complete = True
-                    except Exception as e:
-                        self._log_error(e)
-        self.upload_time = (dt.datetime.now() - upload_time_start).seconds
-
-    def update_last_run(self):
-        self.current_function = 'update_last_run'
+    def _update_last_run(self):
+        self.current_function = '_update_last_run'
         if self.run_requested.lower() != 'true':
             query = 'UPDATE {table}\n' \
                     'SET LAST_RUN = current_timestamp::timestamp_ntz\n' \
@@ -551,7 +228,7 @@ class Task:
             self.dw.execute_sql_command(query, bindvars=[str(self.id)])
 
     def _update_last_attempt(self):
-        self.current_function = 'update_last_run'
+        self.current_function = '_update_last_run'
         query = 'UPDATE {table}\n' \
                 'SET LAST_ATTEMPT = current_timestamp::timestamp_ntz\n' \
                 'WHERE ID = %s'.format(table=self.db_table)
@@ -572,18 +249,21 @@ class Task:
         self.dw.execute_sql_command(query, bindvars=[str(self.id)])
 
     def pause_task(self):
-        self.current_function = 'disable_task'
+        self.current_function = 'pause_task'
         query = 'UPDATE {table}\n' \
                 'SET OPERATIONAL = \'Paused\'\n' \
                 'WHERE ID = %s'.format(table=self.db_table)
         self.dw.execute_sql_command(query, bindvars=[str(self.id)])
 
-    def resume_task(self):
-        self.current_function = 'disable_task'
-        query = 'UPDATE {table}\n' \
-                'SET OPERATIONAL = \'Operational\'\n' \
-                'WHERE ID = %s'.format(table=self.db_table)
-        self.dw.execute_sql_command(query, bindvars=[str(self.id)])
+    def _resume_task(self):
+        if (self.logger.paused
+            or self.logger.disabled) \
+                and self.task_complete:
+            self.current_function = '_resume_task'
+            query = 'UPDATE {table}\n' \
+                    'SET OPERATIONAL = \'Operational\'\n' \
+                    'WHERE ID = %s'.format(table=self.db_table)
+            self.dw.execute_sql_command(query, bindvars=[str(self.id)])
 
     def _reset_flags(self):
         # Reset flags
@@ -601,81 +281,171 @@ class Task:
             query = '''SELECT * FROM D_POST_INSTALL.T_AUTO_TASKS WHERE ID in ({id})'''.format(id=self.dependencies)
             self.dw.execute_query(query)
             for result in self.dw.query_results:
-                test = not recur_test(self.DependentData._make(result))
+                dependent_data = self.DependentData._make(result)
+                test = not recur_test_v2(dependent_data.last_run,
+                                         dependent_data.auto_recurrence,
+                                         hour=dependent_data.recurrence_hour
+                                         if dependent_data.recurrence_hour else 0,
+                                         day=dependent_data.auto_recurrence_day
+                                         if dependent_data.auto_recurrence_day else 'Monday')
                 run_dependents.append(test)
             return all(x for x in run_dependents)
         else:
             return True
 
-    def run_eval(self):
+    def _verify_task_complete(self):
+        if self.input_complete and self.data_source.lower() not in self.require_output:
+            self.task_complete = True
+        elif self.input_complete and self.output_complete and self.data_source.lower() not in self.require_upload:
+            self.task_complete = True
+        elif self.input_complete and self.output_complete and self.upload_complete:
+            self.task_complete = True
+
+    def _input(self):
+        """
+        Check Data Source and execute task type
+        """
+        self.current_function = 'input'
+        #  Log start of input action
+        input_time_start = dt.datetime.now()
+        try:
+            input_handler = TaskInput(self)
+            input_handler.get_input()
+            self.input_data = input_handler.input_data
+            self.input_data_header = input_handler.input_data_header
+            self._verify_input_data()
+            self.input_complete = input_handler.input_complete
+            #  Create input time log
+        except Exception as e:
+            self._log_error(e)
+        self.input_time = (dt.datetime.now() - input_time_start).seconds
+
+    def _output(self):
+        self.current_function = '_output'
+        output_time_start = dt.datetime.now()
+        if self.dynamic_name is not None \
+                and (self.data_storage_type.lower() == 'csv'
+                     or self.data_storage_type.lower() == 'excel'):
+            self.create_dynamic_name()
+
+        try:
+            output_handler = TaskOutput(self)
+            output_handler.set_output()
+            self.output_complete = output_handler.output_complete
+        except Exception as e:
+            self._log_error(e)
+
+        self.output_time = (dt.datetime.now() - output_time_start).seconds
+
+    def _upload(self):
+        self.current_function = '_upload'
+        upload_time_start = dt.datetime.now()
+        try:
+            upload_handler = Upload(self)
+            upload_handler.upload()
+            self.upload_complete = upload_handler.upload_complete
+        except Exception as e:
+            self._log_error(e)
+        self.upload_time = (dt.datetime.now() - upload_time_start).seconds
+
+    def _run_eval(self):
         self.ready = False
-        if self.run_type == 'Testing':
+
+        self.dependents_run = self._dependency_check()
+        if self.logger.paused:
+            recurrence_test = recur_test_v2(self.last_attempt, 'Hourly')
+        elif self.logger.disabled:
+            recurrence_test = recur_test_v2(self.last_attempt, 'Daily')
+        else:
+            recurrence_test = recur_test_v2(self.last_run,
+                                            self.auto_recurrence,
+                                            hour=self.recurrence_hour if self.recurrence_hour else 0,
+                                            day=self.auto_recurrence_day if self.auto_recurrence_day else 'Monday')
+        status_run = self.operational.lower() in self.run_statuses
+
+        run_requested = self.run_requested.lower() == 'true'
+
+        if recurrence_test and run_requested:
+            self.update_run_requested()
+            self.run_requested = 'FALSE'
+            run_requested = False
+
+        self.ready = all([self.dependents_run, recurrence_test, status_run]) or run_requested
+
+        if self.run_type.lower() == 'testing':
             self.ready = True
 
-        else:
-            automated_run = recur_test(self)
-            self.dependents_run = self._dependency_check()
-            status_run = self.operational.lower() in self.run_statuses
-            run_requested = self.run_requested.lower() == 'true'
+    def _execute_task(self):
+        self._input()
 
-            if automated_run and run_requested:
+        if self.input_complete \
+                and self.input_data \
+                and self.data_source.lower() in self.require_output:
+            self._output()
+
+        if self.output_complete and self.data_storage_type.lower() in self.require_upload:
+            self._upload()
+
+    def _update_task(self):
+        if self.task_complete:
+            if self.run_requested.lower() == 'true':
                 self.update_run_requested()
-                self.run_requested = 'FALSE'
-                run_requested = False
-
-            self.ready = (automated_run and self.dependents_run and status_run) or run_requested
+            self.metrics = TaskMetrics(self)
+            self.metrics.submit_task_time()
+            self._update_last_run()
 
     def run_task(self):
+        """
+        Run Task
+        Reads task instructions from the database
+        Evaluates new instructions
+        Runs the task if needed
+        """
+        # Create a new logger for the task instance
         self._create_logger()
         try:
-            self.dw.open_connection()
             self.current_function = 'run_task'
-
+            # Get new instructions and set attributes
             self._refresh_attributes()
 
-            self.run_eval()
+            # Check to see if Task should be run and sets ready to True or False
+            self._run_eval()
 
             if self.ready:
-                if self.run_requested.lower() == 'true':
-                    print('    IN PROGRESS - Manual Request -', self.name)
-                elif self.run_type == 'Testing':
-                    print('    IN PROGRESS - Testing -', self.name)
-                else:
-                    print('    IN PROGRESS - Automated - Priority:', self.priority, '-', self.name)
+                # Print task startup information
+                self.console.task_startup()
+
+                # Update the latest attempt to run the task
                 self._update_last_attempt()
-                self.get_input_data()
-                if self.input_complete and self.input_data:
-                    self.set_output_data()
-                    if self.output_complete:
-                        self.upload_files()
 
-                if self.task_complete \
-                        and self.run_type.lower() == 'automated':
-                    if self.run_requested.lower() == 'true':
-                        self.update_run_requested()
-                    print('    COMPLETED -', self.name)
-                    self.metrics = TaskMetrics(self)
-                    self.metrics.submit_task_time()
-                    self.update_last_run()
+                # Run the task
+                self._execute_task()
 
-                elif self.task_complete and self.run_type.lower() == 'testing':
-                    print('    COMPLETED -', self.name)
-                else:
-                    print('    NOT COMPLETED -', self.name, '- ERROR -', self.error_log[0].error)
+                # Verify the task has been completed
+                self._verify_task_complete()
 
-                if self.logger.paused and self.task_complete:
-                    self.resume_task()
-            if not self.dependents_run \
-                    and (not self.logger.disabled
-                         or not self.logger.paused):
+                # Update all necessary task info in Database
+                self._update_task()
+
+                # Print task shutdown information
+                self.console.task_shutdown()
+
+            # Check if paused task should be be set back to Operational
+            self._resume_task()
+
+            # If dependents failed to run and task is not already paused or disabled.  Log Dependency failure
+            if not self.dependents_run and (not self.logger.disabled or not self.logger.paused):
                 self.current_action = 'Dependency Check'
                 self.current_function = 'run'
                 self._log_error('Dependent Task(s) did not run')
+
         except Exception as e:
-            print('Exception {}:'.format(self.name), str(e))
+            print('Exception on {}:'.format(self.name), str(e))
             self._log_error(str(e))
             raise e
 
         finally:
+            if self.run_type.lower() == 'testing':
+                self.console.print_test_results()
+            # Reset instance variables
             self._reset_flags()
-            self.dw.close_connection()

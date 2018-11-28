@@ -5,7 +5,7 @@ from collections import Counter
 
 def words(text): return re.findall(r'\w+', text.lower())
 
-file = os.path.join(os.getcwd(), 'input/big.txt')
+file = os.path.join(os.getcwd(), '_input/big.txt')
 print(file)
 WORDS = Counter(words(open(file).read()))
 
@@ -181,13 +181,13 @@ def Testset(lines):
             for wrong in wrongs.split()]
 
 
-# spelltest(Testset(open('input/spell-testset1.txt')))  # Development set
-# spelltest(Testset(open('input/spell-testset2.txt')))  # Final test set
+# spelltest(Testset(open('_input/spell-testset1.txt')))  # Development set
+# spelltest(Testset(open('_input/spell-testset2.txt')))  # Final test set
 
 
 def test_corpus(filename):
     print("Testing " + filename)
-    spelltest(Testset(open('input/' + filename)))
+    spelltest(Testset(open('_input/' + filename)))
 
 
 # test_corpus('spell-testset1.txt')  # Development set

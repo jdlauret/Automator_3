@@ -1,5 +1,7 @@
-from . import *
 from BI.utilities.email import Email
+
+from . import *
+
 
 # %% Logger
 class Logger:
@@ -52,7 +54,15 @@ class Logger:
         timestamp = dt.datetime.now().strftime(self.datetime_format)
 
         #  Create error log object
-        log_line = [[self.task.id, action, function, str(error), timestamp, self.task.last_attempt]]
+        log_line = [[
+            self.task.id,
+            action,
+            function,
+            str(error),
+            timestamp,
+            self.task.last_attempt,
+            self.task.run_type
+        ]]
         #  Add object to error log
         self.task.dw.insert_into_table(self.error_table, log_line)
         self.task._get_error_log()
@@ -83,14 +93,18 @@ class Logger:
         now = dt.datetime.now()
         current_date = now.date()
         #  Get all failed attempts
-        failed_attempts = [item.error_timestamp for item in self.task.error_log]
+        failed_attempts = [item.error_timestamp for item in self.task.error_log if item.run_type.lower() != 'testing']
 
         if len(failed_attempts) > 0:
             #  Get all failed attempts that occured today
             failed_attempts_today = [x for x in failed_attempts if x.date() == current_date]
-            #  If attemps limit is reached for day, disable the task
+            #  If attempts limit is reached for day, disable the task
             #  Else pause the task
-            if len(failed_attempts_today) >= self.attempt_limit and not self.disabled:
+            attempt_limit_reached = len(failed_attempts_today) >= self.attempt_limit
+            run_statuses = self.task.operational.lower() not in self.task.run_statuses
+            if attempt_limit_reached \
+                    and not self.disabled \
+                    and run_statuses:
                 self.disabled = True
                 self.task.disable_task()
                 self.send_disabled_email()
@@ -123,6 +137,7 @@ class Logger:
         self.send_email(subject, body)
 
     def send_error_email(self):
+        return
         subject = self.subject + 'Automated Task Error'
         body = """
         This is an automated message to inform you that task {id} - {task_name} encountered an error. The following

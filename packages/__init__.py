@@ -14,4 +14,4 @@ from .file_generators.excel import ExcelGenerator
 from .metrics import TaskMetrics
 from .logger import Logger
 from .python_script import PythonScript
-from .recurrences import recur_test
+from .recurrences import recur_test, recur_test_v2

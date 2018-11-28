@@ -99,7 +99,6 @@ class EscFormstackProcessor:
         }
 
     def question_processing(self):
-        print()
         for j, line in enumerate(self.data):
             new_line = []
             for i, item in enumerate(line):
@@ -141,7 +140,6 @@ class EscFormstackProcessor:
                 break
 
     def create_qa_info(self):
-        print()
 
         start = dt.datetime.now()
         for i, row in enumerate(self.formatted_data):
@@ -165,8 +163,6 @@ class EscFormstackProcessor:
             ]
             self.qa_info.append(new_row)
         end = (dt.datetime.now() - start).seconds
-        print('ESC info table build in {0} seconds'.format(end))
-        print()
 
     def create_question_results(self):
         start = dt.datetime.now()
@@ -200,8 +196,6 @@ class EscFormstackProcessor:
                         self.question_results.append(question_line)
 
         end = (dt.datetime.now() - start).seconds
-        print('ESC Question Results table built in {0} seconds'.format(end))
-        print()
 
 
 class QaFormstackProcessor:
@@ -300,8 +294,6 @@ class QaFormstackProcessor:
         self.question_processing()
 
     def question_processing(self):
-        print()
-        print('Formatting Questions for {0} formstack data'.format(self.formstack.title()))
         for j, line in enumerate(self.data):
             new_line = []
             for i, item in enumerate(line):
@@ -395,8 +387,6 @@ class QaFormstackProcessor:
                 break
 
     def create_qa_info(self):
-        print()
-        print('Creating QA Info Table from {0} Formstack data'.format(self.formstack.title()))
 
         start = dt.datetime.now()
         for i, row in enumerate(self.formatted_data):
@@ -449,8 +439,6 @@ class QaFormstackProcessor:
             ]
             self.qa_info.append(new_row)
         end = (dt.datetime.now() - start).seconds
-        print('QA info table build in {0} seconds'.format(end))
-        print()
 
     def get_project_id(self, ar):
         query = "SELECT TP.PROJECT_ID FROM RPT.T_SERVICE TP WHERE TP.SERVICE_NUMBER = '{ar}'".format(ar=str(ar))
@@ -459,7 +447,6 @@ class QaFormstackProcessor:
             return db.query_results[0][0]
 
     def create_question_results(self):
-        print('Creating QA Question Results Table from {0} Formstack data'.format(self.formstack.title()))
         start = dt.datetime.now()
         for j, line in enumerate(self.formatted_data):
             if line != self.header:
@@ -472,6 +459,11 @@ class QaFormstackProcessor:
                     self.project_ids[str(ar)] = project_id
                 for i, result in enumerate(results):
                     question = self.questions_header[i]
+
+                    question_line = [ar, question, result,
+                                     None, None, None,
+                                     None, None, None,
+                                     survey_type, project_id]
                     if result != 'Pass' \
                             and 'additional comments' not in question.lower() \
                             and 'image' not in question.lower() \
@@ -480,12 +472,6 @@ class QaFormstackProcessor:
                                   and question[2].isdigit()
                                   and self.formstack == 'new')
                                  or self.formstack == 'old'):
-
-                        question_line = [ar, question, result,
-                                         None, None, None,
-                                         None, None, None,
-                                         survey_type, project_id]
-
                         if result == 1:
                             question_line[self.results_header.index('Level 1')] = 1
                         elif result == 2:
@@ -499,11 +485,9 @@ class QaFormstackProcessor:
                         elif result == 'N/A':
                             question_line[self.results_header.index('N/A')] = 1
 
-                        self.question_results.append(question_line)
+                    self.question_results.append(question_line)
 
         end = (dt.datetime.now() - start).seconds
-        print('QA Question Results table built in {0} seconds'.format(end))
-        print()
 
 
 def combine_lists(list1, list2, list2_header=True):
@@ -513,11 +497,8 @@ def combine_lists(list1, list2, list2_header=True):
 
 
 def qa_data_handler():
-    print('Initializing Formstack Processors')
     old_formstack = QaFormstackProcessor(old_formstack_data, old_formstack_header, 'old')
     new_formstack = QaFormstackProcessor(new_formstack_data, new_formstack_header, 'new')
-    print()
-    print('Initialization complete')
 
     old_formstack.create_qa_info()
     new_formstack.create_qa_info()
@@ -574,13 +555,11 @@ if __name__ == '__main__':
         run_qa_data = True
         run_esc_data = True
         update_tables = True
-        print('Getting Foreman Results')
         foreman_db = find_foreman()
         foreman_header = foreman_db[0]
         del foreman_db[0]
 
         if run_qa_data:
-            print("Opening Formstack Data Sheets and DA Sheet")
             old_formstack = GSheets('1OyV1Z1OhInpV-25p6y953iX3EZZgMuHL3YNtDV9ZJuw')
             old_formstack.set_active_sheet('Sheet1')
             old_formstack.get_sheet_data()
@@ -596,7 +575,6 @@ if __name__ == '__main__':
             db_validation.set_active_sheet("Validation Import")
             db_validation.get_sheet_data()
 
-            print('Sheets opened and values stored')
             old_formstack_data = old_formstack.results
             old_formstack_header = old_formstack_data[0]
 

@@ -4,7 +4,7 @@ import json
 import os
 from time import sleep
 
-from BI.data_warehouse.connector import Snowflake
+from BI.data_warehouse import Snowflake
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
@@ -271,18 +271,21 @@ if __name__ == '__main__':
     payload = {
         'username': {
             'html_name': 'ctl00_BaseContent_tbxUserName',
-            'value': os.environ.get('INCONTACT_USERNAME')
+            'value': os.environ.get('MACK_EMAIL')
         },
         'password': {
             'html_name': 'ctl00_BaseContent_tbxPassword',
-            'value': os.environ.get('INCONTACT_PASSWORD')
+            'value': os.environ.get('INCONTACT_PASS')
         },
         'button': {
             'id': 'ctl00_BaseContent_btnLogin'
         }
     }
-    crawler = PrimaryCrawler(payload, 'chrome')
-    crawler.run_crawler()
+    try:
+        crawler = PrimaryCrawler(payload, 'chrome')
+        crawler.run_crawler()
 
-    processor = FileProcessor()
-    processor.process_new_files()
+        processor = FileProcessor()
+        processor.process_new_files()
+    except:
+        crawler.end_crawl()
