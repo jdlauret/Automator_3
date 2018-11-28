@@ -26,23 +26,20 @@ import json
 import os
 
 import pandas
-from BI.data_warehouse.connector import Snowflake
+from BI.data_warehouse import SnowflakeV2, SnowflakeConnectionHandlerV2
 from BI.utilities.incontact import InContactReport
 
 
 class Upload:
-    def __init__(self, report, table_name, dw, clear_table=False):
+    def __init__(self, report, table_name, clear_table=False):
         self.report = report
         self.table = table_name
         self.overwrite = clear_table
-        self.dw = dw
-        try:
-            self.upload_to_table()
-        finally:
-            self.dw.close_connection()  # added 10/02/2018
+
+        self.upload_to_table()
 
     def upload_to_table(self):
-        self.dw.insert_into_table(self.table, self.report, overwrite=self.overwrite)
+        dw.insert_into_table(self.table, self.report, overwrite=self.overwrite)
 
 
 class ReportDownloader:
@@ -65,9 +62,6 @@ class ReportDownloader:
         self.file = 'download_dates.json'
         self.all_dates = None
         self.read_file()
-
-        self.dw = Snowflake()
-        self.dw.set_user('JDLAURET')
 
         if self.download_log_key not in self.all_dates.keys():
             self.all_dates[self.download_log_key] = {}
@@ -126,7 +120,7 @@ class ReportDownloader:
                 self.write_file()
 
     def upload_data_to_table(self):
-        Upload(self.data_frame, self.table_name, self.dw)
+        Upload(self.data_frame, self.table_name)
 
 
 reports_dict = {
@@ -173,9 +167,15 @@ reports_dict = {
 if __name__ == '__main__':
     current_dir = os.getcwd()
     os.chdir(os.path.dirname(os.path.realpath(__file__)))
-
-    for key in reports_dict.keys():
-        reports_dict_key = key
-        rd = ReportDownloader(key, **reports_dict[reports_dict_key])
-        rd.get_all_data()
-        os.chdir(current_dir)
+    db_connection = SnowflakeConnectionHandlerV2()
+    dw = SnowflakeV2(db_connection)
+    dw.set_user('JDLAURET')
+    dw.open_connection()
+    try:
+        for key in reports_dict.keys():
+            reports_dict_key = key
+            rd = ReportDownloader(key, **reports_dict[reports_dict_key])
+            rd.get_all_data()
+            os.chdir(current_dir)
+    finally:
+        dw.close_connection()
