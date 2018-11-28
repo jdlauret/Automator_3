@@ -6,7 +6,7 @@ import pandas as pd
 import pyexcel
 from time import sleep
 from openpyxl import load_workbook, Workbook
-from BI.data_warehouse.connector import Snowflake
+from BI.data_warehouse import SnowflakeV2, SnowflakeConnectionHandlerV2
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -47,30 +47,29 @@ TABLE_NAME = 'JDLAURET.T_ENPHASE_PORTAL_H'
 payload = {
     'username': {
         'html_name': '_58_login',
-        'value': os.environ.get('MACK_EMAIL')
+        'value': os.environ.get('WEBSTATION_USER')
     },
     'password': {
         'html_name': '_58_password',
-        'value': os.environ.get('WEBSTATION_PASSWORD')
+        'value': os.environ.get('WEBSTATION_PASS')
     },
 }
 
 
-def save_json(file_name, obj):
+def save_json(file_name, json_dict):
     """
     Saves an obj to a json
-    :param file: name of the file to dump the data into
-    :param obj: the object to dump
+    :param file_name: name of the file to dump the data into
+    :param json_dict: the object to dump
     """
     with open(file_name, 'w') as outfile:
-        json.dump(obj, outfile, indent=4)
+        json.dump(json_dict, outfile, indent=4)
 
 
 def open_json(file_name):
     """
     Opens a json file and returns it as a dictionary
-    :param file: file_path to the json file
-    :type str:
+    :param file_name: file_path to the json file
     :return: dictionary of json
     """
     with open(file_name) as infile:
@@ -171,7 +170,6 @@ class PrimaryCrawler:
         # Login to page
         self.login()
 
-
         # Go to Reports Page
         self.DRIVER.get(REPORT_URL)
         WebDriverWait(self.DRIVER, self.delay) \
@@ -222,14 +220,12 @@ class PrimaryCrawler:
                             # When href links are found click on them to start download
                             link.click()
                             found_reports += 1
-                            sleep(1.5)
-                            # Wait for file to appear
-                            while not os.path.isfile(os.path.join(DOWNLOAD_DIR, 'report.xls')):
-                                sleep(1)
+                            sleep(2)
+
                             # Wait for .part file to disappear to verify download completed
                             while os.path.exists(os.path.join(DOWNLOAD_DIR, 'report.xls.part')):
                                 sleep(1)
-                            sleep(1)
+
                             # Rename the files
                             rename_report(found_reports)
 
@@ -504,7 +500,7 @@ if __name__ == '__main__':
 
     # Define if testing is active
     testing = True
-    db = Snowflake()
+    db = SnowflakeV2(SnowflakeConnectionHandlerV2())
     db.set_user('JDLAURET')
     db.open_connection()
     crawler = PrimaryCrawler()
@@ -583,8 +579,9 @@ if __name__ == '__main__':
         except:
             log_file[date_string]['scheduled_table_update'] = False
             pass
-    except:
+    except Exception as e:
         crawler.end_crawl()
+        raise e
     finally:
         db.close_connection()
     # End Script

@@ -342,7 +342,7 @@ class Automator:
                 new_task = Task(self.TaskData._make(task), self.db_connection,
                                 working_dir=self.main_dir)
                 self.standard_tasks[task_data.id] = new_task
-            if task_data.id not in self.cycle_tasks.keys() and not standard_task:
+            elif task_data.id not in self.cycle_tasks.keys() and not standard_task:
                 new_task = Task(self.TaskData._make(task), self.db_connection,
                                 working_dir=self.main_dir, run_type='Cycle')
                 setattr(new_task, 'priority', 0)
@@ -423,6 +423,7 @@ class Automator:
                     priority_queue.append(standard_task)
 
         if not test_only:
+            self.cycle_queue = []
             for cycle_task in self.cycle_tasks.values():
                 self.cycle_queue.append(cycle_task)
 
