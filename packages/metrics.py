@@ -27,8 +27,4 @@ class TaskMetrics:
             self.task_completion_time += self.upload_time
 
     def submit_task_time(self):
-
-        try:
-            self.task.dw.insert_into_table(self.table_name, self.upload_line)
-        finally:
-            self.task.dw.close_connection()
+        self.task.dw.insert_into_table(self.table_name, self.upload_line)
