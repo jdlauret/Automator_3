@@ -43,6 +43,7 @@ class Task:
 
         self.input_complete = False
         self.output_complete = False
+        self.upload_complete = False
         self.task_complete = False
 
         self.input_data_header = None
@@ -78,7 +79,7 @@ class Task:
         self.logger = None
         self.dependents_run = False
         self.run_statuses = ['operational', 'paused', 'disabled']
-        self.require_output = ['sql', 'google sheets',]
+        self.require_output = ['sql', 'google sheets', 'csv',]
         self.require_upload = ['csv', 'excel',]
 
     def set_to_testing(self):
@@ -296,7 +297,7 @@ class Task:
     def _verify_task_complete(self):
         if self.input_complete and self.data_source.lower() not in self.require_output:
             self.task_complete = True
-        elif self.input_complete and self.output_complete and self.data_source.lower() not in self.require_upload:
+        elif self.input_complete and self.output_complete and self.data_storage_type.lower() not in self.require_upload:
             self.task_complete = True
         elif self.input_complete and self.output_complete and self.upload_complete:
             self.task_complete = True
@@ -315,9 +316,9 @@ class Task:
             self.input_data_header = input_handler.input_data_header
             self._verify_input_data()
             self.input_complete = input_handler.input_complete
-            #  Create input time log
         except Exception as e:
             self._log_error(e)
+        #  Create input time log
         self.input_time = (dt.datetime.now() - input_time_start).seconds
 
     def _output(self):
