@@ -112,11 +112,8 @@ class TaskOutput:
 
     def _data_warehouse(self):
         try:
-            if self.task.data_source.lower() == 'csv':
-                self.dw.insert_csv_into_table(self.output_source_id, self.task.downloads, self.task.csv_name)
-            else:
-                self.dw.insert_into_table(self.output_source_id, self.input_data,
-                                          overwrite=not self.append, _meta_data_col=self.task.insert_timestamp)
+            self.dw.insert_into_table(self.output_source_id, self.input_data,
+                                      overwrite=not self.append, _meta_data_col=self.task.insert_timestamp)
             self.output_complete = True
         except Exception as e:
             raise e

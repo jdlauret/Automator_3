@@ -58,7 +58,6 @@ class TaskInput:
                 self.dw.execute_query(self.query)
 
                 self.input_data = self.dw.query_results
-                # todo: self.input_data_header isn't setting the self.task.input_data_header, so CsvGenerator isn't receiving the header info
                 self.input_data_header = self.dw.column_names
                 self.input_complete = True
             except Exception as e:
@@ -124,15 +123,18 @@ class TaskInput:
 
     def _csv(self):
         #  Create file name
-        if '.csv' not in self.task.file:
+        if '.csv' not in self.task.file_name:
             self.csv_name = self.task.file_name + '.csv'
         else:
             self.csv_name = self.task.file_name
+        self.task.file_name = self.csv_name
         #  Download file
-        self.task.download_file(self.input_source_id, self.task.name, self.task.downloads)
+        self.task.download_file(self.input_source_id, self.csv_name, self.task.downloads)
         try:
             #  Open csv and store data
             self._read_csv()
+            self.input_data_header = self.input_data[0]
+            del self.input_data[0]
             self.input_complete = True
         except Exception as e:
             raise e
@@ -142,9 +144,10 @@ class TaskInput:
         Open a csv and save the data as input_data
         """
         self.function_name = '_read_csv'
-        reader = csv.reader(os.path.join(self.task.downloads, self.csv_name), dialect='excel')
-        for row in reader:
-            self.input_data.append(row)
+        with open(os.path.join(self.task.downloads, self.csv_name)) as csv_file:
+            reader = csv.reader(csv_file, dialect='excel')
+            for row in reader:
+                self.input_data.append(row)
 
     def get_input(self):
         try:
