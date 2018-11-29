@@ -159,7 +159,7 @@ def recur_test_v2(last_run, rate, hour=0, day='Monday', day_of_month=1):
             return True
 
     elif recurrence_rate.lower() == 'daily':
-        days_passed = (now - last_run).days
+        days_passed = (now.date() - last_run.date()).days
 
         if days_passed >= 1 \
                 and recurrence_hour <= now.hour:

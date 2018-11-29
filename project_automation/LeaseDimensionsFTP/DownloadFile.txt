@@ -198,3 +198,5 @@ VSLR_note_rpt_20181119.csv
 VSLR_note_rpt_20181120.csv
 VSLR_note_rpt_20181121.csv
 VSLR_note_rpt_20181126.csv
+VSLR_note_rpt_20181127.csv
+VSLR_note_rpt_20181128.csv
