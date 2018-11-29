@@ -435,6 +435,7 @@ class Automator:
         for cycle_task in self.cycle_queue:
             self.task_pool.add_task(cycle_task)
         self.task_pool.wait_completion()
+
         print('Running Standard Tasks')
         for queue_number in range(self.number_of_priority_queues):
             queue = self.priority_queues[str(queue_number)]

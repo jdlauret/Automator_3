@@ -370,7 +370,7 @@ class Task:
                 self.run_requested = 'FALSE'
                 run_requested = False
 
-                self.ready = all([self.dependents_run, recurrence_test, status_run]) or run_requested
+            self.ready = all([self.dependents_run, recurrence_test, status_run]) or run_requested
         else:
             self.ready = True
 
@@ -433,7 +433,9 @@ class Task:
             self._resume_task()
 
             # If dependents failed to run and task is not already paused or disabled.  Log Dependency failure
-            if not self.dependents_run and (not self.logger.disabled or not self.logger.paused):
+            if not self.dependents_run \
+                    and (not self.logger.disabled or not self.logger.paused) \
+                    and not self.run_type.lower() == 'cycle':
                 self.current_action = 'Dependency Check'
                 self.current_function = 'run'
                 self._log_error('Dependent Task(s) did not run')
