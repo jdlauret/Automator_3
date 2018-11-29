@@ -427,15 +427,16 @@ class Automator:
             for cycle_task in self.cycle_tasks.values():
                 self.cycle_queue.append(cycle_task)
 
-    def _run_task_queues(self):
-        """
-        Loop through each task in a queue list and add task to queue
-        """
+    def _run_cycle_queue(self):
         print('Running Cycle Tasks')
         for cycle_task in self.cycle_queue:
             self.task_pool.add_task(cycle_task)
         self.task_pool.wait_completion()
 
+    def _run_standard_task_queues(self):
+        """
+        Loop through each task in a queue list and add task to queue
+        """
         print('Running Standard Tasks')
         for queue_number in range(self.number_of_priority_queues):
             queue = self.priority_queues[str(queue_number)]
@@ -490,7 +491,7 @@ class Automator:
             self._setup_queues(test_only=True)
 
             # Run module tests
-            self._run_task_queues()
+            self._run_standard_task_queues()
 
         except Exception as e:
             raise e
@@ -541,8 +542,11 @@ class Automator:
                         # Sort Tasks into Lists
                         self._setup_queues()
 
+                        # Run Cycle tasks
+                        self._run_cycle_queue()
+
                         # Setup Task queues and execute all tasks
-                        self._run_task_queues()
+                        self._run_standard_task_queues()
 
                         # Update the last run in meta data
                         self._update_last_run()

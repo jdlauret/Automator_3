@@ -350,7 +350,7 @@ class Task:
 
     def _run_eval(self):
         self.ready = False
-        if self.run_type.lower() not in ('testing', 'cycle'):
+        if self.run_type.lower() != 'cycle':
             self.dependents_run = self._dependency_check()
             if self.logger.paused:
                 recurrence_test = recur_test_v2(self.last_attempt, 'Hourly')
@@ -371,7 +371,7 @@ class Task:
                 run_requested = False
 
             self.ready = all([self.dependents_run, recurrence_test, status_run]) or run_requested
-        else:
+        if self.run_type.lower() in ('testing', 'cycle'):
             self.ready = True
 
     def _execute_task(self):
@@ -386,12 +386,21 @@ class Task:
             self._upload()
 
     def _update_task(self):
-        if self.task_complete:
-            if self.run_requested.lower() == 'true':
-                self.update_run_requested()
-            self.metrics = TaskMetrics(self)
-            self.metrics.submit_task_time()
-            self._update_last_run()
+        if self.run_type.lower() not in ('testing', 'cycle'):
+            if self.task_complete:
+                if self.run_requested.lower() == 'true':
+                    self.update_run_requested()
+                self.metrics = TaskMetrics(self)
+                self.metrics.submit_task_time()
+                self._update_last_run()
+            else:
+                # If dependents failed to run and task is not already paused or disabled.  Log Dependency failure
+                if not self.dependents_run \
+                        and (not self.logger.disabled
+                             or not self.logger.paused):
+                    self.current_action = 'Dependency Check'
+                    self.current_function = 'run'
+                    self._log_error('Dependent Task(s) did not run')
 
     def run_task(self):
         """
@@ -431,14 +440,6 @@ class Task:
 
             # Check if paused task should be be set back to Operational
             self._resume_task()
-
-            # If dependents failed to run and task is not already paused or disabled.  Log Dependency failure
-            if not self.dependents_run \
-                    and (not self.logger.disabled or not self.logger.paused) \
-                    and not self.run_type.lower() == 'cycle':
-                self.current_action = 'Dependency Check'
-                self.current_function = 'run'
-                self._log_error('Dependent Task(s) did not run')
 
         except Exception as e:
             print('Exception on {}:'.format(self.name), str(e))
