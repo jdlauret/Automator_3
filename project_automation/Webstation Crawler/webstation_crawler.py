@@ -7,7 +7,7 @@ import pyexcel
 from time import sleep
 from openpyxl import load_workbook, Workbook
 from BI.data_warehouse import SnowflakeV2, SnowflakeConnectionHandlerV2
-from selenium import webdriver
+from BI.web_crawler import CrawlerBase
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -30,12 +30,6 @@ def find_main_dir():
 # Directory Variables
 MAIN_DIR = find_main_dir()
 DOWNLOAD_DIR = os.path.join(MAIN_DIR, 'downloads')
-
-# File path to Chrome Driver
-FF_DRIVER_PATH = r'C:\\Users\\jonathan.lauret\\Google Drive\\Projects\\Chrome Driver\\geckodriver.exe'
-
-# LOGIN_URL points to the login form
-LOGIN_URL = 'https://bu4595898.nicewfm.incontact.com'
 
 # REPORT_URL points to report page
 REPORT_URL = 'https://bu4595898.nicewfm.incontact.com/group/supervisor-webstation/reports-view'
@@ -110,76 +104,43 @@ def clear_downloads():
             os.remove(file_path)
 
 
-class PrimaryCrawler:
+class PrimaryCrawler(CrawlerBase):
     """
-    Primary Crawler is a web crawler that will download 2 reports
-    from Webstations and rename the files
+    Primary Crawler is a web crawler that will login to the Login URL
     """
-    delay = 10
     num_reports = 3
     crawler_log = {
         'login': False,
         'number_of_downloads': 0
     }
 
-    def __init__(self):
+    def __init__(self, driver_type, download_directory=None, headless=False):
+        # Primary Items
+        CrawlerBase.__init__(self, driver_type, download_directory=download_directory, headless=None)
         # Primary Items
         self.current_line = 0
         self.skip = False
 
-        # Define Options for Firefox
-        options = webdriver.FirefoxOptions()
-
-        if not testing:
-            # Set driver to headless when not in testing mode
-            options.add_argument('--headless')
-
-        fp = webdriver.FirefoxProfile()
-        # Default Preference Change stops Fingerprinting on site
-        fp.DEFAULT_PREFERENCES['frozen']['dom.disable_open_during_load'] = True
-        # Set the Download preferences to change the download folder location and to auto download reports
-        fp.set_preference('browser.download.folderList', 2)
-        fp.set_preference('browser.download.manager.showWhenStarting', False)
-        fp.set_preference('browser.download.dir', DOWNLOAD_DIR)
-        fp.set_preference('browser.helperApps.neverAsk.saveToDisk', 'application/vnd.ms-excel')
-        # Create the Driver and Delete all cookies
-        self.DRIVER = webdriver.Firefox(executable_path=FF_DRIVER_PATH, options=options, firefox_profile=fp)
-        self.DRIVER.delete_all_cookies()
-
-    def login(self):
-        # Use Driver to login
-        # Go to Login Page
-        self.DRIVER.get(LOGIN_URL)
-
-        # Insert Username
-        WebDriverWait(self.DRIVER, self.delay) \
-            .until(EC.presence_of_element_located((By.NAME, payload['username']['html_name'])))
-        uname = self.DRIVER.find_element_by_name(payload['username']['html_name'])
-        uname.send_keys(payload['username']['value'])
-
-        # Insert Password
-        passw = self.DRIVER.find_element_by_name(payload['password']['html_name'])
-        passw.send_keys(payload['password']['value'])
-
-        # Click the Login button
-        login_button = 'aui-button-input'
-        self.DRIVER.find_element_by_class_name(login_button).click()
-        self.crawler_log['login'] = True
-
     def run_crawler(self):
+        payload = {
+            'url': 'https://bu4595898.nicewfm.incontact.com',
+            'username': {'input': os.environ.get('WEBSTATION_USER'), 'name': '_58_login',},
+            'password': {'input': os.environ.get('WEBSTATION_PASS'), 'name': '_58_password',},
+            'submit': {'class': 'aui-button-input',},
+        }
         # Login to page
-        self.login()
+        self.login(**payload)
 
         # Go to Reports Page
-        self.DRIVER.get(REPORT_URL)
-        WebDriverWait(self.DRIVER, self.delay) \
+        self.driver.get(REPORT_URL)
+        WebDriverWait(self.driver, self.delay) \
             .until(EC.presence_of_element_located((By.ID, '_supvreportsview_WAR_supvwebstationportlet_iframe')))
         # Find iFrame and switch to it
-        self.DRIVER.switch_to.frame(self.DRIVER.find_element_by_id('_supvreportsview_WAR_supvwebstationportlet_iframe'))
+        self.driver.switch_to.frame(self.driver.find_element_by_id('_supvreportsview_WAR_supvwebstationportlet_iframe'))
         try:
             # Wait for the Today table to load and define it
-            WebDriverWait(self.DRIVER, self.delay).until(EC.presence_of_element_located((By.ID, 'Today')))
-            today_table = self.DRIVER.find_element_by_id('Today')
+            WebDriverWait(self.driver, self.delay).until(EC.presence_of_element_located((By.ID, 'Today')))
+            today_table = self.driver.find_element_by_id('Today')
             new_table = []
             # Get the rows from the table
             rows = today_table.find_elements(By.TAG_NAME, 'tr')
@@ -235,10 +196,6 @@ class PrimaryCrawler:
         finally:
             # Shutdown the Crawler
             self.end_crawl()
-
-    def end_crawl(self):
-        # Close the Driver and upload last batch
-        self.DRIVER.quit()
 
 
 class ProcessDownloads:
@@ -482,7 +439,6 @@ def convert_files():
 
 
 def clear_last_14_days():
-
     clear_actual = """
     DELETE FROM D_POST_INSTALL.T_WS_ACTIVITY_ACTUALS
     WHERE TRUNC(ACTUAL_START, 'day') >= DATEADD('day', -14, current_date)
@@ -503,7 +459,7 @@ if __name__ == '__main__':
     db = SnowflakeV2(SnowflakeConnectionHandlerV2())
     db.set_user('JDLAURET')
     db.open_connection()
-    crawler = PrimaryCrawler()
+    crawler = PrimaryCrawler('chrome', download_directory=DOWNLOAD_DIR)
     try:
         # Define Table Names
         actual_table = 'D_POST_INSTALL.T_WS_ACTIVITY_ACTUALS'
