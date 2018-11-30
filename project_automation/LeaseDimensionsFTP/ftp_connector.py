@@ -38,14 +38,11 @@ from datetime import datetime
 from time import sleep
 
 import pandas as pd
-from BI.data_warehouse.connector import Snowflake
-from selenium import webdriver
+from BI.data_warehouse import SnowflakeV2, SnowflakeConnectionHandlerV2
+from BI.web_crawler import CrawlerBase
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
-
-CHROME_DRIVER_PATH = r'C:\\Users\\jonathan.lauret\\Google Drive\\Projects\\Chrome Driver\chromedriver.exe'
-FIREFOX_DRIVER_PATH = r'C:\\Users\\jonathan.lauret\\Google Drive\\Projects\\Chrome Driver\geckodriver.exe'
 
 
 def find_main_dir():
@@ -62,100 +59,22 @@ def find_main_dir():
         return os.path.dirname(os.path.realpath(__file__))
 
 
-class PrimaryCrawler:
-    """
-    Primary Crawler is a web crawler that will download 2 reports
-    from Webstations and rename the files
-    """
-    delay = 10
-    num_reports = 3
-    crawler_log = {
-        'login': False,
-        'number_of_downloads': 0
-    }
+class PrimaryCrawler(CrawlerBase):
 
-    def __init__(self, driver, testing=False):
-        # Primary Items
-        self.testing = testing
-        self.skip = False
-        self.driver = driver
-
-        self.fp = webdriver.FirefoxProfile()
-
-        if testing:
-            print('Testing is active')
-
-        if self.driver.lower() == 'firefox':
-            self.options = webdriver.FirefoxOptions()
-            self.setup_firefox_driver()
-            # Create the Driver and Delete all cookies
-            self.DRIVER = webdriver.Firefox(executable_path=FIREFOX_DRIVER_PATH,
-                                            options=self.options,
-                                            firefox_profile=self.fp)
-        elif self.driver.lower() == 'chrome':
-            self.options = webdriver.ChromeOptions()
-            self.setup_chrome_driver()
-            self.DRIVER = webdriver.Chrome(executable_path=CHROME_DRIVER_PATH,
-                                           options=self.options)
-
-        self.DRIVER.delete_all_cookies()
-
-    def setup_firefox_driver(self):
-
-        # Default Preference Change stops Fingerprinting on site
-        self.fp.DEFAULT_PREFERENCES['frozen']['dom.disable_open_during_load'] = True
-        # Set the Download preferences to change the download folder location and to auto download reports
-        self.fp.set_preference('browser.download.folderList', 2)
-        self.fp.set_preference('browser.download.manager.showWhenStarting', False)
-        self.fp.set_preference('browser.download.dir', DOWNLOAD_DIR)
-        self.fp.set_preference('browser.helperApps.neverAsk.saveToDisk', 'application/vnd.ms-excel')
-
-        if not self.testing:
-            # Set driver to headless when not in testing mode
-            self.options.add_argument('--headless')
-
-    def setup_chrome_driver(self):
-        prefs = {
-            'profile.default_content_settings.popups': 0,
-            'download.default_directory': DOWNLOAD_DIR + '\\',
-            'directory_upgrade': True,
-        }
-        self.options.add_experimental_option('prefs', prefs)
-        self.options.add_argument("disable-infobars")
-        if not self.testing:
-            self.options.add_argument('headless')
-
-    def login(self):
-        # Use Driver to login
-        # Go to Login Page
-        print('Logging into {url}'.format(url=LOGIN_URL))
-        self.DRIVER.get(LOGIN_URL)
-
-        WebDriverWait(self.DRIVER, self.delay) \
-            .until(EC.presence_of_element_located((By.ID, payload['username']['html_name'])))
-        # Insert Username
-        uname = self.DRIVER.find_element_by_id(payload['username']['html_name'])
-        uname.send_keys(payload['username']['value'])
-
-        # Insert Password
-        passw = self.DRIVER.find_element_by_id(payload['password']['html_name'])
-        passw.send_keys(payload['password']['value'])
-
-        # Click the Login button
-        login_button = payload['button']['class_name']
-        self.DRIVER.find_element_by_id(login_button).click()
-        self.crawler_log['login'] = True
+    def __init__(self, driver, download_directory=None, headless=False):
+        CrawlerBase.__init__(self, driver, download_directory, headless)
 
     def locate_current_folder(self):
-        print('Loading {url}'.format(url=REPORT_URL))
-        self.DRIVER.get(REPORT_URL)
+        if self.console_output:
+            print('Loading {url}'.format(url=REPORT_URL))
+        self.driver.get(REPORT_URL)
         try:
-            WebDriverWait(self.DRIVER, self.delay) \
+            WebDriverWait(self.driver, self.delay) \
                 .until(EC.presence_of_all_elements_located((By.CLASS_NAME, 'table_16ftul1')))
         except Exception as e:
             print(e)
 
-        folders_table = self.DRIVER.find_element_by_class_name('table_16ftul1')
+        folders_table = self.driver.find_element_by_class_name('table_16ftul1')
         folders_thead = folders_table.find_element(By.TAG_NAME, 'thead')
         folders_thead = folders_thead.find_element(By.TAG_NAME, 'tr')
         folders_thead = folders_thead.find_elements(By.TAG_NAME, 'th')
@@ -184,16 +103,18 @@ class PrimaryCrawler:
     def check_page_for_downloads(self):
         try:
             # Wait for the Today table to load and define it
-            print('Waiting for table to load')
-            WebDriverWait(self.DRIVER, self.delay) \
+            if self.console_output:
+                print('Waiting for table to load')
+            WebDriverWait(self.driver, self.delay) \
                 .until(EC.presence_of_element_located((By.CLASS_NAME, 'table_16ftul1')))
-            reports_table = self.DRIVER.find_element_by_class_name('table_16ftul1')
+            reports_table = self.driver.find_element_by_class_name('table_16ftul1')
         except Exception as e:
             print(e)
 
         new_table = []
         # Get the rows from the table
-        print('Finding reports')
+        if self.console_output:
+            print('Finding reports')
         rows = reports_table.find_elements(By.TAG_NAME, 'tr')
 
         # Iterate through rows, find links and text and store them
@@ -215,12 +136,19 @@ class PrimaryCrawler:
                 write_download_file(file_name)
 
     def run_crawler(self):
+        payload = {
+            'url': 'https://leasedimensions.sharefile.com/Authentication/Login',
+            'username': {'input': os.environ.get('JD_EMAIL'), 'id': 'credentials-email', },
+            'password': {'input': os.environ.get('LD_PASS'), 'id': 'credentials-password', },
+            'submit': {'id': 'start-button', },
+        }
         # Login to page
-        self.login()
+
+        self.login(**payload)
         sleep(4)
         # Call URL
-        if testing:
-            print(self.DRIVER.current_url)
+        if self.console_output:
+            print(self.driver.current_url)
 
         # Go to Reports Page
         self.checked_all_pages = False
@@ -237,50 +165,52 @@ class PrimaryCrawler:
     def download_files(self, title):
         xpath = '//*[@title=\"{title}\"]'.format(title=title)
         # Click on name in table
-        if self.testing:
+        if self.console_output:
             print(xpath)
-        print('Attempting to download {title}'.format(title=title))
-        found_item = self.DRIVER.find_element_by_xpath(xpath)
+            print('Attempting to download {title}'.format(title=title))
+        found_item = self.driver.find_element_by_xpath(xpath)
         found_item_parent = found_item.find_element_by_xpath('..')
         try:
-            print('Clicking Item')
+            if self.console_output:
+                print('Clicking Item')
             found_item.click()
             # Wait for Download button to appear then click on it
-            print('Waiting for Download Button')
+            if self.console_output:
+                print('Waiting for Download Button')
             try:
-                WebDriverWait(self.DRIVER, self.delay) \
+                WebDriverWait(self.driver, self.delay) \
                     .until(EC.presence_of_element_located((By.CLASS_NAME, 'buttonWrapper_18jq2rj')))
-                self.DRIVER.find_element_by_class_name('buttonWrapper_18jq2rj').click()
+                self.driver.find_element_by_class_name('buttonWrapper_18jq2rj').click()
             except:
                 pass
             while not os.path.exists(os.path.join(DOWNLOAD_DIR, title)):
                 sleep(.5)
 
             # Click on the back arrow
-            self.DRIVER.find_element_by_class_name('backButton_1fhxzk6').click()
+            self.driver.find_element_by_class_name('backButton_1fhxzk6').click()
             sleep(2)
             # Wait for table to repopulate
-            WebDriverWait(self.DRIVER, self.delay) \
+            WebDriverWait(self.driver, self.delay) \
                 .until(EC.presence_of_element_located((By.CLASS_NAME, 'table_16ftul1')))
         except:
-            print('Failed First Click')
-            print('Clicking Parent')
+            if self.console_output:
+                print('Failed First Click')
+                print('Clicking Parent')
             found_item_parent.click()
-            print('Waiting for Download Button')
-            WebDriverWait(self.DRIVER, self.delay) \
+            if self.console_output:
+                print('Waiting for Download Button')
+            WebDriverWait(self.driver, self.delay) \
                 .until(EC.presence_of_element_located((By.CLASS_NAME, 'button_1y18368')))
-            print('Found Download Button')
-            download_button = self.DRIVER.find_element_by_class_name('button_1y18368')
-            print('Clicking Download Button')
+            if self.console_output:
+                print('Found Download Button')
+            download_button = self.driver.find_element_by_class_name('button_1y18368')
+            if self.console_output:
+                print('Clicking Download Button')
             download_button.click()
-            print('Waiting for Download to Complete')
+            if self.console_output:
+                print('Waiting for Download to Complete')
             while not os.path.exists(os.path.join(DOWNLOAD_DIR, title)):
                 sleep(.5)
-
-    def end_crawl(self):
-        # Close the Driver
-        print('Crawler Tasks Complete')
-        self.DRIVER.quit()
 
 
 class CsvProcessor:
@@ -383,33 +313,19 @@ if __name__ == '__main__':
     DOWNLOAD_FILE_PATH = os.path.join(find_main_dir(), 'DownloadFile.txt')
     PROCESSED_FILE_PATH = os.path.join(find_main_dir(), 'ProcessFile.txt')
 
-    LOGIN_URL = 'https://leasedimensions.sharefile.com/Authentication/Login'
     REPORT_URL = 'https://leasedimensions.sharefile.com/home/shared/fo7fe20f-4b2d-407f-952d-da3f9d153f54'
-
-    payload = {
-        'username': {
-            'html_name': 'credentials-email',
-            'value': os.environ.get('JD_EMAIL')
-        },
-        'password': {
-            'html_name': 'credentials-password',
-            'value': os.environ.get('LD_PASS')
-        },
-        'button': {
-            'class_name': 'start-button'
-        }
-    }
 
     TABLE_NAME = 'D_POST_INSTALL.T_LEASE_DIMENSION'
 
+    pc = PrimaryCrawler('chrome', download_directory=DOWNLOAD_DIR)
     try:
-        pc = PrimaryCrawler('chrome', testing=testing)
+        # pc.enable_console_output()
         pc.run_crawler()
-
-        db = Snowflake()
+        db_connection = SnowflakeConnectionHandlerV2()
+        db = SnowflakeV2(db_connection)
         db.set_user('JDLAURET')
+        db.open_connection()
         try:
-            db.open_connection()
             for file in os.listdir(DOWNLOAD_DIR):
                 if '.csv' in file and file not in read_process_file():
                     current_file = CsvProcessor(os.path.join(DOWNLOAD_DIR, file))
@@ -419,4 +335,5 @@ if __name__ == '__main__':
         finally:
             db.close_connection()
     finally:
-        pc.end_crawl()
+        if pc.active:
+            pc.end_crawl()

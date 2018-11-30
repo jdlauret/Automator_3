@@ -167,14 +167,12 @@ reports_dict = {
 if __name__ == '__main__':
     current_dir = os.getcwd()
     os.chdir(os.path.dirname(os.path.realpath(__file__)))
-    db_connection = SnowflakeConnectionHandlerV2()
-    dw = SnowflakeV2(db_connection)
+    dw = SnowflakeV2(SnowflakeConnectionHandlerV2())
     dw.set_user('JDLAURET')
     dw.open_connection()
     try:
         for key in reports_dict.keys():
-            reports_dict_key = key
-            rd = ReportDownloader(key, **reports_dict[reports_dict_key])
+            rd = ReportDownloader(key, **reports_dict[key])
             rd.get_all_data()
             os.chdir(current_dir)
     finally:
