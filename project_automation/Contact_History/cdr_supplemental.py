@@ -59,7 +59,7 @@ class PrimaryCrawler:
             self.options = Options()
             self.setup_chrome_driver()
             self.DRIVER = webdriver.Chrome(executable_path=CHROME_DRIVER_PATH,
-                                           chrome_options=self.options)
+                                           options=self.options)
 
         self.DRIVER.delete_all_cookies()
 
