@@ -18,7 +18,7 @@ def find_main_dir():
         return os.path.dirname(__file__)
 
 
-WORDS = Counter(words(open(os.path.join(find_main_dir(), 'input/big.txt')).read()))
+WORDS = Counter(words(open(os.path.join(find_main_dir(), 'input\\big.txt')).read()))
 
 
 def P(word, N=sum(WORDS.values())):

@@ -5,7 +5,7 @@ from collections import Counter
 
 def words(text): return re.findall(r'\w+', text.lower())
 
-file = os.path.join(os.getcwd(), '_input/big.txt')
+file = os.path.join(os.getcwd(), 'input\\big.txt')
 print(file)
 WORDS = Counter(words(open(file).read()))
 

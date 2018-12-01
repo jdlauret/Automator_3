@@ -518,8 +518,9 @@ class Automator:
                     # Update meta data status
                     self._status_running()
 
-                    # Backup Local Files
-                    self.backup_files()
+                    if not self.task_test:
+                        # Backup Local Files
+                        self.backup_files()
 
                     # Create Task Objects
                     self._create_task_objects()
