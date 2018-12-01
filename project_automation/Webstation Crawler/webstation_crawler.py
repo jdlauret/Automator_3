@@ -535,9 +535,8 @@ if __name__ == '__main__':
         except:
             log_file[date_string]['scheduled_table_update'] = False
             pass
-    except Exception as e:
-        crawler.end_crawl()
-        raise e
     finally:
+        if crawler.active:
+            crawler.end_crawl()
         db.close_connection()
     # End Script
