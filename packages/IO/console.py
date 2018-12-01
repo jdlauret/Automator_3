@@ -63,10 +63,11 @@ class TaskConsole:
         else:
             print('    Input Type does not require an output')
 
-        if self.task.data_storage_type.lower() in self.task.require_upload:
-            print('    Upload Complete:', self.task.upload_complete)
-        else:
-            print('    Output Type does not require an upload')
+        if self.task.data_storage_type is not None:
+            if self.task.data_storage_type.lower() in self.task.require_upload:
+                print('    Upload Complete:', self.task.upload_complete)
+            else:
+                print('    Output Type does not require an upload')
 
         for error in self.task.error_log:
             hour = (dt.datetime.now() - error.error_timestamp).seconds /60 / 60

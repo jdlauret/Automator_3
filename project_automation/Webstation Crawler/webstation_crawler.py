@@ -185,10 +185,12 @@ class PrimaryCrawler(CrawlerBase):
 
                             # Wait for .part file to disappear to verify download completed
                             while os.path.exists(os.path.join(DOWNLOAD_DIR, 'report.xls.part')):
-                                sleep(1)
-
+                                sleep(.1)
+                            while not os.path.exists(os.path.join(DOWNLOAD_DIR, 'report.xls')):
+                                sleep(.1)
                             # Rename the files
                             rename_report(found_reports)
+
 
             self.crawler_log['number_of_downloads'] = found_reports
         except Exception as e:
@@ -222,7 +224,7 @@ class ProcessDownloads:
 
     def process_file(self):
         # Get current Sheet
-        current_sheet = self.current_wb.get_sheet_by_name(self.sheet_name)
+        current_sheet = self.current_wb[self.sheet_name]
 
         # Set Default Current Variables
         current_agent = ''
