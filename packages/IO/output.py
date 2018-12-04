@@ -102,8 +102,7 @@ class TaskOutput:
 
     def _csv(self):
         try:
-            data_with_header = [self.task.input_data_header] + self.input_data
-            csv_gen = CsvGenerator(data_with_header, self.task)
+            csv_gen = CsvGenerator(self.input_data, self.task)
             csv_gen.create_csv()
             self.task.file_name = csv_gen.file_name
             self.output_complete = True
