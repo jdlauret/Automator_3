@@ -140,10 +140,9 @@ class PrimaryCrawler(CrawlerBase):
             'url': 'https://leasedimensions.sharefile.com/Authentication/Login',
             'username': {'input': os.environ.get('JD_EMAIL'), 'id': 'credentials-email', },
             'password': {'input': os.environ.get('LD_PASS'), 'id': 'credentials-password', },
-            'submit': {'id': 'start-button', },
+            'submit': {'class': 'navlink', },
         }
         # Login to page
-
         self.login(**payload)
         sleep(4)
         # Call URL
