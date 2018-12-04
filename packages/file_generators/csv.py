@@ -24,17 +24,10 @@ class CsvGenerator:
 
         self.data = data
         self.task = task
-        self.header = self.task.input_data_header
         self.file_path = self.task.file_storage
         self.file_name = self.task.file_name
 
         self.successful_run = False
-
-        # Remove the header from the data set
-        # if it is included in the data set
-        if self.header is None:
-            self.header = data[0]
-            del self.data[0]
 
     def create_csv(self):
         """
@@ -42,9 +35,9 @@ class CsvGenerator:
         """
         try:
             # Convert List of Lists to DataFrame and write it to a CSV
-            pd.DataFrame(self.data, columns=self.header) \
+            pd.DataFrame(self.data, columns=self.task.input_data_header) \
                 .to_csv(os.path.join(self.file_path, self.file_name), index=False)
             self.successful_run = True
-        except:
+        except Exception as e:
             # TODO create Exception Handling
-            raise
+            raise e
