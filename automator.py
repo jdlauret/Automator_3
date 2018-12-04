@@ -567,7 +567,6 @@ class Automator:
             self.dw.close_connection()
 
 
-
 # %% PriorityOrganizer
 class PriorityOrganizer:
     TaskInfo = namedtuple('TaskInfo', 'id dependents sorted')

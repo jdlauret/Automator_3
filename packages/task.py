@@ -225,36 +225,36 @@ class Task:
         if self.run_requested.lower() != 'true':
             query = 'UPDATE {table}\n' \
                     'SET LAST_RUN = current_timestamp::timestamp_ntz\n' \
-                    'WHERE ID = %s'.format(table=self.db_table)
-            self.dw.execute_sql_command(query, bindvars=[str(self.id)])
+                    'WHERE ID = {id}'.format(table=self.db_table, id=self.id)
+            self.dw.execute_sql_command(query)
 
     def _update_last_attempt(self):
         self.current_function = '_update_last_run'
         query = 'UPDATE {table}\n' \
                 'SET LAST_ATTEMPT = current_timestamp::timestamp_ntz\n' \
-                'WHERE ID = %s'.format(table=self.db_table)
-        self.dw.execute_sql_command(query, bindvars=[str(self.id)])
+                'WHERE ID = {id}'.format(table=self.db_table, id=self.id)
+        self.dw.execute_sql_command(query)
 
     def update_run_requested(self):
         self.current_function = 'update_run_requested'
         query = 'UPDATE {table}\n' \
                 'SET RUN_REQUESTED = \'FALSE\'\n' \
-                'WHERE ID = %s'.format(table=self.db_table)
-        self.dw.execute_sql_command(query, bindvars=[str(self.id)])
+                'WHERE ID = {id}'.format(table=self.db_table, id=self.id)
+        self.dw.execute_sql_command(query)
 
     def disable_task(self):
         self.current_function = 'disable_task'
         query = 'UPDATE {table}\n' \
                 'SET OPERATIONAL = \'Disabled\'\n' \
-                'WHERE ID = %s'.format(table=self.db_table)
-        self.dw.execute_sql_command(query, bindvars=[str(self.id)])
+                'WHERE ID = {id}'.format(table=self.db_table, id=self.id)
+        self.dw.execute_sql_command(query)
 
     def pause_task(self):
         self.current_function = 'pause_task'
         query = 'UPDATE {table}\n' \
                 'SET OPERATIONAL = \'Paused\'\n' \
-                'WHERE ID = %s'.format(table=self.db_table)
-        self.dw.execute_sql_command(query, bindvars=[str(self.id)])
+                'WHERE ID = {id}'.format(table=self.db_table, id=self.id)
+        self.dw.execute_sql_command(query)
 
     def _resume_task(self):
         if (self.logger.paused
@@ -263,8 +263,8 @@ class Task:
             self.current_function = '_resume_task'
             query = 'UPDATE {table}\n' \
                     'SET OPERATIONAL = \'Operational\'\n' \
-                    'WHERE ID = %s'.format(table=self.db_table)
-            self.dw.execute_sql_command(query, bindvars=[str(self.id)])
+                    'WHERE ID = {id}'.format(table=self.db_table, id=self.id)
+            self.dw.execute_sql_command(query)
 
     def _reset_flags(self):
         # Reset flags
@@ -383,7 +383,8 @@ class Task:
                 and self.data_source.lower() in self.require_output:
             self._output()
 
-        if self.output_complete and self.data_storage_type.lower() in self.require_upload:
+        if self.output_complete \
+                and self.data_storage_type.lower() in self.require_upload:
             self._upload()
 
     def _update_task(self):
