@@ -14,7 +14,7 @@ from collections import namedtuple
 from queue import Queue
 from threading import Thread
 
-from BI.data_warehouse import Snowflake, SnowflakeV2, SnowflakeConnectionHandlerV2
+from BI.data_warehouse import SnowflakeV2, SnowflakeConnectionHandlerV2
 from packages.utilities import find_main_dir
 from packages.task import Task
 

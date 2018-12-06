@@ -226,6 +226,8 @@ class Task:
             query = 'UPDATE {table}\n' \
                     'SET LAST_RUN = current_timestamp::timestamp_ntz\n' \
                     'WHERE ID = {id}'.format(table=self.db_table, id=self.id)
+            if self.db_table is None or self.id is None:
+                print(self.task_name, '\ndb_table:', self.db_table, '\nid:', self.id)
             self.dw.execute_sql_command(query)
 
     def _update_last_attempt(self):
@@ -257,10 +259,11 @@ class Task:
         self.dw.execute_sql_command(query)
 
     def _resume_task(self):
-        if (self.logger.paused
-            or self.logger.disabled) \
+        if (self.logger.paused or self.logger.disabled)\
                 and self.task_complete:
             self.current_function = '_resume_task'
+            if self.db_table is None or self.id is None:
+                print(self.task_name, '\ndb_table:', self.db_table, '\nid:', self.id)
             query = 'UPDATE {table}\n' \
                     'SET OPERATIONAL = \'Operational\'\n' \
                     'WHERE ID = {id}'.format(table=self.db_table, id=self.id)
@@ -271,9 +274,9 @@ class Task:
         self.task_complete = False
         self.input_complete = False
         self.output_complete = False
-        self.task_complete = False
-        self.input_data_header = None
+        self.upload_complete = False
         self.input_data = None
+        self.input_data_header = None
 
     def _dependency_check(self):
         run_dependents = []

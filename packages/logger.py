@@ -102,7 +102,7 @@ class Logger:
             #  If attempts limit is reached for day, disable the task
             #  Else pause the task
             attempt_limit_reached = len(failed_attempts_today) >= self.attempt_limit
-            run_statuses = self.task.operational.lower() not in self.task.run_statuses
+            run_statuses = self.task.operational.lower() in self.task.run_statuses
             if attempt_limit_reached \
                     and not self.disabled \
                     and run_statuses:
