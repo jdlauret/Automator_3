@@ -6,6 +6,7 @@ class TaskInput:
     def __init__(self, task):
         self.task = task
         self.database = self.task.sql_database
+        self.dw = None
         if self.database:
             if self.database.lower() == 'data warehouse':
                 self.dw = self.task.dw
@@ -55,11 +56,14 @@ class TaskInput:
         self._read_query()
         if self.query:
             try:
-                self.dw.execute_query(self.query)
+                if self.dw:
+                    self.dw.execute_query(self.query)
 
-                self.input_data = self.dw.query_results
-                self.input_data_header = self.dw.column_names
-                self.input_complete = True
+                    self.input_data = self.dw.query_results
+                    self.input_data_header = self.dw.column_names
+                    self.input_complete = True
+                else:
+                    self.task._log_error('SQL_DATABASE in T_AUTO_TASKS cannot be Null for this task')
             except Exception as e:
                 raise e
 
