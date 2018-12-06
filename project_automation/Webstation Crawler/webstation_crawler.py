@@ -2,15 +2,15 @@ import datetime as dt
 import os
 import sys
 import json
-import pandas as pd
 import pyexcel
+import pandas as pd
 from time import sleep
-from openpyxl import load_workbook, Workbook
-from BI.data_warehouse import SnowflakeV2, SnowflakeConnectionHandlerV2
 from BI.web_crawler import CrawlerBase
 from selenium.webdriver.common.by import By
+from openpyxl import load_workbook, Workbook
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from BI.data_warehouse import SnowflakeV2, SnowflakeConnectionHandlerV2
 
 
 def find_main_dir():
@@ -124,9 +124,9 @@ class PrimaryCrawler(CrawlerBase):
     def run_crawler(self):
         payload = {
             'url': 'https://bu4595898.nicewfm.incontact.com',
-            'username': {'input': os.environ.get('WEBSTATION_USER'), 'name': '_58_login',},
-            'password': {'input': os.environ.get('WEBSTATION_PASS'), 'name': '_58_password',},
-            'submit': {'class': 'aui-button-input',},
+            'username': {'input': os.environ.get('WEBSTATION_USER'), 'name': '_58_login', },
+            'password': {'input': os.environ.get('WEBSTATION_PASS'), 'name': '_58_password', },
+            'submit': {'class': 'aui-button-input', },
         }
         # Login to page
         self.login(**payload)
@@ -190,7 +190,6 @@ class PrimaryCrawler(CrawlerBase):
                                 sleep(.1)
                             # Rename the files
                             rename_report(found_reports)
-
 
             self.crawler_log['number_of_downloads'] = found_reports
         except Exception as e:
@@ -510,7 +509,6 @@ if __name__ == '__main__':
             save_json(log_file_path, log_file)
 
         # Clear the last 14 days of data from both tables
-
         try:
             clear_last_14_days()
             log_file[date_string]['cleared_data'] = True
@@ -537,9 +535,8 @@ if __name__ == '__main__':
         except:
             log_file[date_string]['scheduled_table_update'] = False
             pass
-    except Exception as e:
-        crawler.end_crawl()
-        raise e
     finally:
+        if crawler.active:
+            crawler.end_crawl()
         db.close_connection()
     # End Script
