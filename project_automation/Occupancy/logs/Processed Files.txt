@@ -64,3 +64,6 @@
 2018-12-02 Handle Time Report.CSV
 2018-12-03 Handle Time Report.CSV
 2018-12-04 Handle Time Report.CSV
+2018-12-05 Handle Time Report.CSV
+2018-12-06 Handle Time Report.CSV
+2018-12-07 Handle Time Report.CSV
