@@ -10,7 +10,7 @@ class Task:
     SheetRange = collections.namedtuple('SheetRange', 'start_row start_col end_row end_col')
     SheetRange.__new__.__defaults__ = (2, 1, 0, 0)
 
-    def __init__(self, task_data, connection, db_table='D_POST_INSTALL.T_AUTO_TASKS',
+    def __init__(self, task_data, connection,
                  run_type='Automated', working_dir=None,):
         """
         Task object used by Automator 3
@@ -28,7 +28,7 @@ class Task:
         self.console = None
 
         self.task_data = task_data
-        self.db_table = db_table
+        self.db_table = 'D_POST_INSTALL.T_AUTO_TASKS'
         self.run_type = run_type
         self.metrics = None
         self.ready = False
@@ -223,39 +223,39 @@ class Task:
     def _update_last_run(self):
         self.current_function = '_update_last_run'
         if self.run_requested.lower() != 'true':
-            query = 'UPDATE {table}\n' \
-                    'SET LAST_RUN = current_timestamp::timestamp_ntz\n' \
-                    'WHERE ID = {id}'.format(table=self.db_table, id=self.id)
+            query = '''UPDATE {table}\n
+            SET LAST_RUN = current_timestamp::timestamp_ntz\n
+            WHERE ID = {id}'''.format(table=self.db_table, id=self.id)
             if self.db_table is None or self.id is None:
                 print(self.task_name, '\ndb_table:', self.db_table, '\nid:', self.id)
             self.dw.execute_sql_command(query)
 
     def _update_last_attempt(self):
         self.current_function = '_update_last_run'
-        query = 'UPDATE {table}\n' \
-                'SET LAST_ATTEMPT = current_timestamp::timestamp_ntz\n' \
-                'WHERE ID = {id}'.format(table=self.db_table, id=self.id)
+        query = '''UPDATE {table}\n
+        SET LAST_ATTEMPT = current_timestamp::timestamp_ntz\n
+        WHERE ID = {id}'''.format(table=self.db_table, id=self.id)
         self.dw.execute_sql_command(query)
 
     def update_run_requested(self):
         self.current_function = 'update_run_requested'
-        query = 'UPDATE {table}\n' \
-                'SET RUN_REQUESTED = \'FALSE\'\n' \
-                'WHERE ID = {id}'.format(table=self.db_table, id=self.id)
+        query = '''UPDATE {table}\n
+        SET RUN_REQUESTED = \'FALSE\'\n
+        WHERE ID = {id}'''.format(table=self.db_table, id=self.id)
         self.dw.execute_sql_command(query)
 
     def disable_task(self):
         self.current_function = 'disable_task'
-        query = 'UPDATE {table}\n' \
-                'SET OPERATIONAL = \'Disabled\'\n' \
-                'WHERE ID = {id}'.format(table=self.db_table, id=self.id)
+        query = '''UPDATE {table}\n
+        SET OPERATIONAL = \'Disabled\'\n
+        WHERE ID = {id}'''.format(table=self.db_table, id=self.id)
         self.dw.execute_sql_command(query)
 
     def pause_task(self):
         self.current_function = 'pause_task'
-        query = 'UPDATE {table}\n' \
-                'SET OPERATIONAL = \'Paused\'\n' \
-                'WHERE ID = {id}'.format(table=self.db_table, id=self.id)
+        query = '''UPDATE {table}\n
+        SET OPERATIONAL = \'Paused\'\n
+        WHERE ID = {id}'''.format(table=self.db_table, id=self.id)
         self.dw.execute_sql_command(query)
 
     def _resume_task(self):
@@ -264,9 +264,9 @@ class Task:
             self.current_function = '_resume_task'
             if self.db_table is None or self.id is None:
                 print(self.task_name, '\ndb_table:', self.db_table, '\nid:', self.id)
-            query = 'UPDATE {table}\n' \
-                    'SET OPERATIONAL = \'Operational\'\n' \
-                    'WHERE ID = {id}'.format(table=self.db_table, id=self.id)
+            query = '''UPDATE {table}\n
+            SET OPERATIONAL = \'Operational\'\n
+            WHERE ID = {id}'''.format(table=self.db_table, id=self.id)
             self.dw.execute_sql_command(query)
 
     def _reset_flags(self):
