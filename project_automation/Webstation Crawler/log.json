@@ -1731,5 +1731,77 @@
         "cleared_data": true,
         "actual_table_updated": true,
         "scheduled_table_update": true
+    },
+    "2018-12-08": {
+        "crawler": {
+            "login": false,
+            "number_of_downloads": 3
+        },
+        "converted_files": 3,
+        "report - 1.xlsx": {
+            "file_name": "report - 1.xlsx",
+            "row_count": 37108
+        },
+        "report - 2.xlsx": {
+            "file_name": "report - 2.xlsx",
+            "row_count": 25590
+        },
+        "report - 3.xlsx": {
+            "file_name": "report - 3.xlsx",
+            "row_count": 17764
+        },
+        "cleared_data": true,
+        "actual_table_updated": true,
+        "scheduled_table_update": true
+    },
+    "2018-12-09": {
+        "crawler": {
+            "login": false,
+            "number_of_downloads": 3
+        },
+        "converted_files": 3,
+        "report - 1.xlsx": {
+            "file_name": "report - 1.xlsx",
+            "row_count": 31697
+        },
+        "report - 2.xlsx": {
+            "file_name": "report - 2.xlsx",
+            "row_count": 25602
+        },
+        "report - 3.xlsx": {
+            "file_name": "report - 3.xlsx",
+            "row_count": 23993
+        },
+        "cleared_data": true,
+        "actual_table_updated": true,
+        "scheduled_table_update": true
+    },
+    "2018-12-10": {
+        "crawler": {
+            "login": false,
+            "number_of_downloads": 3
+        }
+    },
+    "2018-12-11": {
+        "crawler": {
+            "login": false,
+            "number_of_downloads": 3
+        },
+        "converted_files": 3,
+        "report - 1.xlsx": {
+            "file_name": "report - 1.xlsx",
+            "row_count": 29723
+        },
+        "report - 2.xlsx": {
+            "file_name": "report - 2.xlsx",
+            "row_count": 25144
+        },
+        "report - 3.xlsx": {
+            "file_name": "report - 3.xlsx",
+            "row_count": 24235
+        },
+        "cleared_data": true,
+        "actual_table_updated": true,
+        "scheduled_table_update": true
     }
 }
