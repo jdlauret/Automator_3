@@ -184,10 +184,7 @@ class PrimaryCrawler(CrawlerBase):
                             sleep(2)
 
                             # Wait for .part file to disappear to verify download completed
-                            while os.path.exists(os.path.join(DOWNLOAD_DIR, 'report.xls.part')):
-                                sleep(.1)
-                            while not os.path.exists(os.path.join(DOWNLOAD_DIR, 'report.xls')):
-                                sleep(.1)
+                            self.wait_for_download()
                             # Rename the files
                             rename_report(found_reports)
 
@@ -197,6 +194,18 @@ class PrimaryCrawler(CrawlerBase):
         finally:
             # Shutdown the Crawler
             self.end_crawl()
+
+    def wait_for_download(self):
+        seconds = 0
+        dl_wait = True
+        sleep(2)
+        while dl_wait and seconds < 20:
+            sleep(1)
+            dl_wait = False
+            for fname in os.listdir(DOWNLOAD_DIR):
+                if fname.endswith('.part'):
+                    dl_wait = True
+            seconds += 1
 
 
 class ProcessDownloads:
@@ -460,7 +469,7 @@ if __name__ == '__main__':
     db = SnowflakeV2(SnowflakeConnectionHandlerV2())
     db.set_user('JDLAURET')
     db.open_connection()
-    crawler = PrimaryCrawler('chrome', download_directory=DOWNLOAD_DIR)
+    crawler = PrimaryCrawler('FireFox', download_directory=DOWNLOAD_DIR)
     try:
         # Define Table Names
         actual_table = 'D_POST_INSTALL.T_WS_ACTIVITY_ACTUALS'

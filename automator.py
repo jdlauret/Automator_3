@@ -323,7 +323,7 @@ class Automator:
                                         quoting=csv.QUOTE_MINIMAL, lineterminator='\n')
                     for row in self.dw.query_with_header:
                         writer.writerow(row)
-            # Update the tast backup timestamp
+            # Update the task backup timestamp
             self._update_task_backup()
 
     def _create_task_objects(self):

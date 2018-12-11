@@ -1687,5 +1687,11 @@
         "cleared_data": true,
         "actual_table_updated": true,
         "scheduled_table_update": true
+    },
+    "2018-12-11": {
+        "crawler": {
+            "login": false,
+            "number_of_downloads": 3
+        }
     }
 }
