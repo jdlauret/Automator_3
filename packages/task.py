@@ -31,7 +31,7 @@ class Task:
         self.db_table = 'D_POST_INSTALL.T_AUTO_TASKS'
         self.run_type = run_type
         self.metrics = None
-        self.ready = False
+
         #  All of the statuses that should stop the task from working
         #  These are ignored if run_type is set to Testing
 
@@ -41,10 +41,13 @@ class Task:
 
         self.query = None
 
+        # Task Flags
+        self.ready = False
         self.input_complete = False
         self.output_complete = False
         self.upload_complete = False
         self.task_complete = False
+        self.dependents_run = False
 
         self.input_data_header = None
         self.input_data = None
@@ -77,7 +80,7 @@ class Task:
         self.create_attributes()
         #  Create Task Logger object
         self.logger = None
-        self.dependents_run = False
+
         self.run_statuses = ['operational', 'paused', 'disabled']
         self.require_output = ['sql', 'google sheets', 'csv',]
         self.require_upload = ['csv', 'excel',]
@@ -275,6 +278,8 @@ class Task:
         self.input_complete = False
         self.output_complete = False
         self.upload_complete = False
+        self.dependents_run = False
+        self.ready = False
         self.input_data = None
         self.input_data_header = None
 

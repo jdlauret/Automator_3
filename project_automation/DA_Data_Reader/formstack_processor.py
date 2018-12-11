@@ -4,7 +4,7 @@ import re
 import sys
 import threading
 
-from BI.data_warehouse.connector import Snowflake
+from BI.data_warehouse import SnowflakeV2, SnowflakeConnectionHandlerV2
 from BI.google.gsheets import GSheets
 
 
@@ -548,7 +548,7 @@ def esc_data_handler():
 
 
 if __name__ == '__main__':
-    db = Snowflake()
+    db = SnowflakeV2(SnowflakeConnectionHandlerV2())
     db.set_user('JDLAURET')
     db.open_connection()
     try:

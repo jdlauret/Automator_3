@@ -55,10 +55,10 @@ class TaskConsole:
         print('    Task Status:', self.task.operational)
         print('    Task Completed:', self.task.task_complete)
         print('    Input Type:', self.task.data_source)
+        print('    Output Type:', self.task.data_storage_type)
         print('    Input Complete:', str(self.task.input_complete))
 
         if self.task.data_source.lower() in self.task.require_output:
-            print('    Output Type:', self.task.data_storage_type)
             print('    Output Complete:', self.task.output_complete)
         else:
             print('    Input Type does not require an output')

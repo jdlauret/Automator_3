@@ -97,7 +97,7 @@ class Logger:
         failed_attempts = [item.error_timestamp for item in self.task.error_log if item.run_type.lower() != 'testing']
 
         if len(failed_attempts) > 0:
-            #  Get all failed attempts that occured today
+            #  Get all failed attempts that occurred today
             failed_attempts_today = [x for x in failed_attempts if x.date() == current_date]
             #  If attempts limit is reached for day, disable the task
             #  Else pause the task
