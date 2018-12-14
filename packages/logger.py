@@ -138,15 +138,15 @@ class Logger:
         self.send_email(subject, body)
 
     def send_error_email(self):
-        return
         subject = self.subject + 'Automated Task Error'
+        email_params = {'task_id'}
         body = """
-        This is an automated message to inform you that task {id} - {task_name} encountered an error. The following
-         error was logged: {error}\n\nIf you have questions about any of the errors or what they mean, please 
-         talk to JD.""".format(task_id=self.task.id,
-                               task_name=self.task.name,
-                               time=dt.datetime.now().strftime('%d-%m-%y %H:%M'),
-                               error=self.task.error_log[0].error)
+        This is an automated message to inform you that task {task_id} - {task_name} encountered an error. The following
+        error was logged: {error}\n\nIf you have questions about any of the errors or what they mean, please
+        talk to JD.""".format(task_id=self.task.id,
+                              task_name=self.task.name,
+                              time=dt.datetime.now().strftime('%d-%m-%y %H:%M'),
+                              error=self.task.error_log[0].error)
 
         self.send_email(subject, body)
 
@@ -157,5 +157,5 @@ class Logger:
         :param body:  The body of the email
         :return:
         """
-        email = Email([self.task.owner_email, 'jonathan.lauret@vivintsolar.com'], subject, body)
+        email = Email([self.task.owner_email] + ['jonathan.lauret@vivintsolar.com'], subject, body)
         email.send_msg()
