@@ -8,6 +8,8 @@ class TaskOutput:
     def __init__(self, task):
         self.task = task
         self.dw = self.task.dw
+        self.luna_dw = Postgres()
+        self.luna_dw.login(os.environ.get('POSTGRES_HOST'))
         self.append = self.task.append
         self.SheetRange = self.task.SheetRange
         self.dynamic_name = self.task.dynamic_name
@@ -56,6 +58,26 @@ class TaskOutput:
         self.range_name = range_builder(self.task.wb_start_row, self.task.wb_start_column,
                                         end_row=self.task.wb_end_row, end_col=self.task.wb_end_column)
 
+    def check_for_file(self):
+        """
+        Check if the file exist in File Storage
+        """
+        if self.task.file_name in os.listdir(self.task.file_storage):
+            return True
+        return False
+
+    def download_file(self, id, file_name, file_location):
+        """
+        Open Google Drive a download required file
+        :param id: The Google Drive ID to download
+        :param file_name: What the file should be named once downloaded
+        :param file_location: Where to store the file
+        """
+        file_exists = self.check_for_file()
+        if not file_exists:
+            gd = GDrive()
+            gd.download_file(id, file_name, file_location)
+
     def _prep_data_for_gsheets(self):
         """
         Convert data in input_data to Json serializable values
@@ -89,7 +111,7 @@ class TaskOutput:
 
     def _excel(self):
         if self.output_source_id:
-            self.task.download_file(self.output_source_id, self.task.file_name, self.task.file_storage)
+            self.download_file(self.output_source_id, self.task.file_name, self.task.file_storage)
         self._create_range()
         try:
             excel = ExcelGenerator(self.input_data, self.task.file_name, self.task.wb_sheet_name,
@@ -117,6 +139,22 @@ class TaskOutput:
         except Exception as e:
             raise e
 
+    def _luna(self):
+        if self.output_source_id[0] != '\"' \
+                and self.output_source_id[-1] != '\"':
+            self.output_source_id = '\"' + self.output_source_id.replace('\"', '') + '\"'
+
+        self.luna_dw.open_connection()
+
+        try:
+            self.luna_dw.insert_into_table(self.output_source_id, self.input_data,
+                                           overwrite=not self.append, _meta_data_col=self.task.insert_timestamp)
+            self.output_complete = True
+        except Exception as e:
+            raise e
+        finally:
+            self.luna_dw.close_connection()
+
     def set_output(self):
 
         if self.output_type.lower() == 'csv':
@@ -130,3 +168,6 @@ class TaskOutput:
 
         elif self.output_type.lower() == 'data warehouse':
             self._data_warehouse()
+
+        elif self.output_type.lower() == 'luna':
+            self._luna()

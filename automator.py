@@ -10,25 +10,24 @@ import datetime as dt
 import os
 import shutil
 import time
+import pandas as pd
 from collections import namedtuple
 from queue import Queue
-from threading import Thread
-
+from threading import Thread, Lock
 from BI.data_warehouse import SnowflakeV2, SnowflakeConnectionHandlerV2
 from packages.utilities import find_main_dir
-from packages.task import Task
+from packages.task_v2 import Task
+
+lock = Lock()
+print_lock = Lock()
 
 
 class TaskRunner(Thread):
     """Thread executing tasks from a given tasks queue"""
 
-    def __init__(self, queue, thread_num):
-        super(TaskRunner, self).__init__()
+    def __init__(self, queue):
+        super(TaskRunner, self).__init__(daemon=True)
         self._q = queue
-        self.daemon = True
-        thread_name = 'Queue Thread ' + str(thread_num) + ' Started'
-        self.setName(thread_name)
-        print(self.getName())
         self.start()
 
     def run(self):
@@ -37,9 +36,6 @@ class TaskRunner(Thread):
                 task = self._q.get()
                 try:
                     task.run_task()
-                except Exception as e:
-                    print(e)
-                    raise e
                 finally:
                     self._q.task_done()
 
@@ -48,9 +44,15 @@ class TaskThreadPool:
     """ Pool of threads consuming tasks for a queue """
 
     def __init__(self, num_threads):
+        self.num_threads = num_threads
         self._q = Queue()
-        for i in range(num_threads):
-            TaskRunner(self._q, i)
+        self.workers = []
+
+    def create_threads(self):
+        for _ in range(self.num_threads):
+            self.workers.append(TaskRunner(self._q))
+        with print_lock:
+            print('{} task threads created'.format(len(self.workers)))
 
     def add_task(self, task):
         """ Add a tasks to the queue """
@@ -62,7 +64,7 @@ class TaskThreadPool:
 
 
 class Automator:
-    def __init__(self, test_task_id=None, test_loop_count=0):
+    def __init__(self, test_task_id=None, test_task=False, test_loop_count=0):
         """
         Automator Settings
         Basic start up settings, when testing a single task no Thread Pool is created.
@@ -70,8 +72,9 @@ class Automator:
         """
         # Specific Task testing information
         self.test_task_id = test_task_id
-        self.task_test = False
+        self.test_task = test_task
         self.test_loop_count = test_loop_count
+        self.print_lock = print_lock
         print('Starting Automator 3')
         # Database Connection
         self.db_connection = SnowflakeConnectionHandlerV2()
@@ -80,6 +83,7 @@ class Automator:
 
         # Default schema to work out of
         self.dw.set_schema('D_POST_INSTALL')
+        self.dw.set_role('D_POST_INSTALL_SUPER_SEC_R')
 
         # Table containing task instructions
         self.task_table = 'T_AUTO_TASKS'
@@ -97,6 +101,8 @@ class Automator:
         # All Task Objects Store by Task ID
         self.standard_tasks = {}
         self.cycle_tasks = {}
+        self.created_tasks = []
+
         # Used for named tuple defined in _refresh_task_data
         self.TaskData = None
 
@@ -104,28 +110,31 @@ class Automator:
         self.cycle_queue = []
         self.priority_queues = {}
         self.number_of_priority_queues = 0
-
+        # Max number of threads to have running
+        self.max_task_num_threads = 5
+        self.threads_created = False
+        self.task_pool = TaskThreadPool(self.max_task_num_threads)
 
         # Meta Data Storage
         self.meta_data = {}
 
-        # If a test task id was provided turn task_test on
-        if self.test_task_id:
-            self.task_test = True
+    def open_thread_pool(self):
+        with self.print_lock:
+            print('Creating Task Threads')
+        self.task_pool.create_threads()
+        self.threads_created = True
 
-        else:
-            # Max number of threads to have running
-            self.max_task_num_threads = 7
-            # Setup up task pool
-            self.task_pool = TaskThreadPool(self.max_task_num_threads)
-            print('{} threads in ThreadPool'.format(self.max_task_num_threads))
-
-    def set_database_table(self, table_name):
-        """
-        Change Task Table Name
-        :param table_name: New Table Name including Schema
-        """
-        self.task_table = table_name
+    def _query_tracker(self, queries):
+        file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'Query Tracker.txt')
+        try:
+            with open(file_path, 'r') as f:
+                data = f.read().splitlines(True)
+        except:
+            pass
+        with open(file_path, 'w') as f:
+            line = dt.datetime.now().strftime('%Y-%m-%d %H:%M') + ' Queries Performed: {}\n'.format(queries)
+            data = data + [line]
+            f.writelines(data[-200:])
 
     def _get_meta_data(self):
         """
@@ -143,56 +152,50 @@ class Automator:
         query = 'UPDATE {table} SET CURRENT_STATUS = \'Running\''.format(table=self.meta_data_table)
         self.dw.execute_sql_command(query)
 
-    def _status_sleeping(self):
+    def _update_meta_data(self):
         """
         Change Current Status in meta data table to Sleeping
         """
-        query = 'UPDATE {table} SET CURRENT_STATUS = \'Sleeping\''.format(table=self.meta_data_table)
-        self.dw.execute_sql_command(query)
+        self.meta_data = self.meta_data._replace(current_status='Sleeping')
+        self.dw.insert_into_table('D_POST_INSTALL.' + self.meta_data_table, [list(self.meta_data)], overwrite=True)
 
     def _update_last_run(self):
         """
         Update Last Run to current timestamp
         """
-        query = 'UPDATE {table} SET LAST_RUN = current_timestamp::timestamp_ntz'.format(table=self.meta_data_table)
-        self.dw.execute_sql_command(query)
+        self.meta_data = self.meta_data._replace(last_run=dt.datetime.now())
 
     def _update_last_backup(self):
         """
         Update Last Backup to current timestamp
         """
-        query = 'UPDATE {table} SET LAST_BACKUP = current_timestamp::timestamp_ntz'.format(table=self.meta_data_table)
-        self.dw.execute_sql_command(query)
+        self.meta_data = self.meta_data._replace(last_backup=dt.datetime.now())
 
     def _update_last_priority_update(self):
         """
         Update last priority update to current timestamp
         """
-        query = 'UPDATE {table} SET LAST_PRIORITY_UPDATE = current_timestamp::timestamp_ntz' \
-            .format(table=self.meta_data_table)
-        self.dw.execute_sql_command(query)
+        self.meta_data = self.meta_data._replace(last_priority_update=dt.datetime.now())
 
     def _update_task_backup(self):
         """
         Update last task backup to current timestamp
         """
-        query = 'UPDATE {table} SET TASK_BACKUP = current_timestamp::timestamp_ntz' \
-            .format(table=self.meta_data_table)
-        self.dw.execute_sql_command(query)
+        self.meta_data = self.meta_data._replace(task_backup=dt.datetime.now())
 
     def backup_files(self):
         """
         This function should only run once per day and uses meta_data.last_backup
         to determine the last time the action was performed. The actions taken to
-        move files in file_backups dir are:
+        move files in local_backups dir are:
             Delete all files stored in Day 5.
             Then move all files in Day 4 to 5, 3 to 4, 2 to 3, 1 to 2.
-            Last move all files in file_storage to Day 1
+            Last move all files in local_storage to Day 1
         """
         # The current time and define directories to work with
         today = dt.datetime.today()
-        backup_dir = os.path.join(os.getcwd(), 'file_backups')
-        storage_dir = os.path.join(os.getcwd(), 'file_storage')
+        backup_dir = os.path.join(os.getcwd(), 'local_backups')
+        storage_dir = os.path.join(os.getcwd(), 'local_storage')
 
         #  Get last_backup from MetaData
         last_backup = self.meta_data.last_backup
@@ -218,7 +221,8 @@ class Automator:
                 for file in os.listdir(day_5):
                     file_path = os.path.join(day_5, file)
                     try:
-                        if os.path.isfile(file_path):
+                        if os.path.isfile(file_path) \
+                                and file != '.placeholder':
                             os.unlink(file_path)
                     except Exception as e:
                         pass
@@ -226,35 +230,40 @@ class Automator:
             # Move files from Day 4 to Day 5
             if os.listdir(day_4):
                 for file in os.listdir(day_4):
-                    if file != 'desktop.ini':
+                    if file != 'desktop.ini' \
+                            and file != '.placeholder':
                         source = os.path.join(day_4, file)
                         shutil.move(source, day_5)
 
             # Move files from Day 3 to Day 4
             if os.listdir(day_3):
                 for file in os.listdir(day_3):
-                    if file != 'desktop.ini':
+                    if file != 'desktop.ini' \
+                            and file != '.placeholder':
                         source = os.path.join(day_3, file)
                         shutil.move(source, day_4)
 
             # Move files from Day 2 to Day 3
             if os.listdir(day_2):
                 for file in os.listdir(day_2):
-                    if file != 'desktop.ini':
+                    if file != 'desktop.ini' \
+                            and file != '.placeholder':
                         source = os.path.join(day_2, file)
                         shutil.move(source, day_3)
 
             # Move files from Day 1 to Day 2
             if os.listdir(day_1):
                 for file in os.listdir(day_1):
-                    if file != 'desktop.ini':
+                    if file != 'desktop.ini' \
+                            and file != '.placeholder':
                         source = os.path.join(day_1, file)
                         shutil.move(source, day_2)
 
-            # Move files from file_storage to Day 1
+            # Move files from local_storage to Day 1
             if os.listdir(storage_dir):
                 for file in os.listdir(storage_dir):
-                    if file != 'desktop.ini':
+                    if file != 'desktop.ini' \
+                            and file != '.placeholder':
                         source = os.path.join(storage_dir, file)
                         shutil.move(source, day_1)
 
@@ -290,9 +299,9 @@ class Automator:
 
         # Get meta data and perform task backup
         self._get_meta_data()
-        self._backup_tasks()
+        self._backup_task_table()
 
-    def _backup_tasks(self):
+    def _backup_task_table(self):
         """
         In the event that a the Task Table were dropped or items deleted
         Create a copy of the Task Table in as a CSV
@@ -324,29 +333,36 @@ class Automator:
                     for row in self.dw.query_with_header:
                         writer.writerow(row)
             # Update the task backup timestamp
-            self._update_task_backup()
+            self.meta_data = self.meta_data._replace(task_backup=dt.datetime.now())
 
     def _create_task_objects(self):
         """
         Creates a dictionary containing each task object using
         the task ID as the key and the Task object as the value
         """
-
+        self.created_tasks = []
+        self.cycle_tasks = {}
+        self.standard_tasks = {}
         for task in self.task_table_data:
             # Create TaskData named tuple
             task_data = self.TaskData._make(task)
 
             standard_task = task_data.operational.lower() != 'cycle'
+
+            task_id = task_data.id
+
             # If the id key does no exist create key value pair in task_objects
-            if task_data.id not in self.standard_tasks.keys() and standard_task:
-                new_task = Task(self.TaskData._make(task), self.db_connection,
-                                working_dir=self.main_dir)
-                self.standard_tasks[task_data.id] = new_task
-            elif task_data.id not in self.cycle_tasks.keys() and not standard_task:
-                new_task = Task(self.TaskData._make(task), self.db_connection,
-                                working_dir=self.main_dir, run_type='Cycle')
+            if task_id not in self.created_tasks and standard_task:
+                self.standard_tasks[task_data.id] = Task(task_data, self.db_connection,
+                                                         working_dir=self.main_dir, print_lock=self.print_lock)
+                self.created_tasks.append(task_id)
+
+            elif task_id not in self.created_tasks and not standard_task:
+                new_task = Task(task_data, self.db_connection, working_dir=self.main_dir,
+                                run_type='Cycle', print_lock=self.print_lock)
                 setattr(new_task, 'priority', 0)
                 self.cycle_tasks[task_data.id] = new_task
+                self.created_tasks.append(task_id)
 
     def _check_priorities(self):
         """
@@ -402,6 +418,8 @@ class Automator:
         :param test_only: Put Task objects into Test Mode
                           if operational Test Only
         """
+        self.cycle_queue = []
+        self.priority_queues = {}
         for standard_task in self.standard_tasks.values():
             # Verify task has a data source
             if standard_task.data_source is not None:
@@ -427,13 +445,13 @@ class Automator:
             for cycle_task in self.cycle_tasks.values():
                 self.cycle_queue.append(cycle_task)
 
-    def _run_cycle_queue(self):
+    def _start_cycle_tasks(self):
         print('Running Cycle Tasks')
         for cycle_task in self.cycle_queue:
             self.task_pool.add_task(cycle_task)
         self.task_pool.wait_completion()
 
-    def _run_standard_task_queues(self):
+    def _start_standard_tasks(self):
         """
         Loop through each task in a queue list and add task to queue
         """
@@ -441,8 +459,11 @@ class Automator:
         for queue_number in range(self.number_of_priority_queues):
             queue = self.priority_queues[str(queue_number)]
             if len(queue) > 0:
+                task_in_queue = []
                 for task in queue:
-                    self.task_pool.add_task(task)
+                    if task.id not in task_in_queue:
+                        task_in_queue.append(task.id)
+                        self.task_pool.add_task(task)
                 self.task_pool.wait_completion()
 
     def _sleep(self):
@@ -458,17 +479,19 @@ class Automator:
         now = dt.datetime.now()
         print('Automator 3 Restarting {}'.format(now))
 
-    def test_task(self, task_id):
+    def run_test_task(self, task_id):
         """
         Get a specific task, set task to testing, then run task
         :param task_id: ID of the task to test
         """
         print('Running Automator 3 - MODE: Task Test')
         # Get requested task
+
         task = self.standard_tasks.get(int(task_id))
         print('Running Task: {id} - {name}'.format(id=task.id, name=task.name))
         # Set task to testing and run
-        task.set_to_testing()
+        if self.test_task:
+            task.set_to_testing()
         task.run_task()
 
     def module_tests(self):
@@ -491,7 +514,7 @@ class Automator:
             self._setup_queues(test_only=True)
 
             # Run module tests
-            self._run_standard_task_queues()
+            self._start_standard_tasks()
 
         except Exception as e:
             raise e
@@ -502,8 +525,9 @@ class Automator:
     def run_automator(self):
         # Start Program Loop
         cycles = 0
-
         mode_print = False
+
+        # Open Database Connection
         self.dw.open_connection()
         try:
             while True:
@@ -511,14 +535,13 @@ class Automator:
                 cycles += 1
                 print('Cycle {} Started'.format(cycles))
                 try:
-
-                    # Get Task Data
+                    # Get tasks from automator table
                     self._refresh_task_data()
 
                     # Update meta data status
                     self._status_running()
 
-                    if not self.task_test:
+                    if not self.test_task:
                         # Backup Local Files
                         self.backup_files()
 
@@ -528,12 +551,11 @@ class Automator:
                     # Create Task Priorities
                     self._check_priorities()
 
-                    if self.task_test:
-
+                    if self.test_task_id:
                         # Start up requested task
-                        self.test_task(self.test_task_id)
+                        self.run_test_task(self.test_task_id)
                         if not self.test_loop_count \
-                                or cycles == self.test_loop_count:
+                                or cycles - 1 >= self.test_loop_count:
                             break
 
                     else:
@@ -543,25 +565,36 @@ class Automator:
                         # Sort Tasks into Lists
                         self._setup_queues()
 
+                        if not self.threads_created:
+                            # Create Task Threads
+                            self.open_thread_pool()
+
                         # Run Cycle tasks
-                        self._run_cycle_queue()
+                        self._start_cycle_tasks()
 
                         # Setup Task queues and execute all tasks
-                        self._run_standard_task_queues()
+                        self._start_standard_tasks()
 
                         # Update the last run in meta data
                         self._update_last_run()
 
                         # Update meta data status
-                        self._status_sleeping()
 
                         print('Cycle {} Completed'.format(cycles))
 
-                        # Sleep till next 5 minute interval 12:00, 12:05, etc
-                        self._sleep()
-
                 except Exception as e:
                     raise e
+
+                finally:
+                    # Record Number of Queries used and reset query counter
+                    print('Cycle used {} queries'.format(self.dw.connection.query_counter))
+                    self._query_tracker(self.dw.connection.query_counter)
+                    self.dw.connection.query_counter = 0
+                    if not self.test_task:
+                        # Update Automator meta data
+                        self._update_meta_data()
+                        # Sleep till next 5 minute interval 12:00, 12:05, etc
+                        self._sleep()
 
         finally:
             self.dw.close_connection()
@@ -573,26 +606,17 @@ class PriorityOrganizer:
 
     def __init__(self, automator):
         self.automator = automator
-        self.task_list = []
+        self.task_list = pd.DataFrame(self.automator.task_table_data, columns=self.automator.task_table_column_names)
         self.task_dict = {}
         self.sorted_tasks = {}
         self.priority_queue = {}
         self.number_of_queues = 0
 
-    def _get_task_list(self):
-        query = '''
-        SELECT ID, DEPENDENCIES
-        FROM D_POST_INSTALL.T_AUTO_TASKS
-        ORDER BY ID DESC
-        '''
-        self.automator.dw.execute_query(query)
-
-        self.task_list = self.automator.dw.query_results
-
     def _create_task_dict(self):
-        for row in self.task_list:
-            row.append(False)
-            task_info = self.TaskInfo._make(row)
+        for i, row in self.task_list.iterrows():
+            row_values = row[['id', 'dependencies']].values.tolist()
+            row_values.append(False)
+            task_info = self.TaskInfo._make(row_values)
             self.task_dict[task_info.id] = task_info
 
     def _zero_priorities(self):
@@ -631,7 +655,6 @@ class PriorityOrganizer:
                                     self.task_dict[task_id] = task_data._replace(sorted=True)
 
     def find_priorities(self):
-        self._get_task_list()
         self._create_task_dict()
         self._zero_priorities()
         self._set_priority()

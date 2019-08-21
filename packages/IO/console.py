@@ -8,14 +8,13 @@ class TaskConsole:
 
     def __init__(self, task):
         """
-        Requires a Task object from packages > task.py
+        Requires a Task object from packages > task_v2.py
         :param task: Task object
         """
         self.task = task
 
     def task_startup(self):
-        """
-        Print task start up information
+        """ Print task start up information
         """
         if self.task.run_requested.lower() == 'true':
             print('    IN PROGRESS - Manual Request -', self.task.name)
@@ -38,8 +37,8 @@ class TaskConsole:
         if self.task.task_complete:
             print('    COMPLETED -', self.task.name)
 
-        elif not self.task.task_complete and self.task.error_log:
-            print('    NOT COMPLETED -', self.task.name, '- ERROR -', self.task.error_log[0].error)
+        elif not self.task.task_complete and self.task.Logger.error_log:
+            print('    NOT COMPLETED -', self.task.name, '- ERROR -', self.task.Logger.error_log[0].error)
 
         else:
             print('    NOT COMPLETED -', self.task.name)
@@ -55,6 +54,11 @@ class TaskConsole:
         print('    Task Status:', self.task.operational)
         print('    Task Completed:', self.task.task_complete)
         print('    Input Type:', self.task.data_source)
+        if self.task.data_source.lower() == 'sql':
+            if self.task.input_data:
+                print('      Query Data Returned')
+            else:
+                print('      No Data Returned')
         print('    Output Type:', self.task.data_storage_type)
         print('    Input Complete:', str(self.task.input_complete))
 
@@ -69,7 +73,7 @@ class TaskConsole:
             else:
                 print('    Output Type does not require an upload')
 
-        for error in self.task.error_log:
+        for error in self.task.Logger.error_log:
             hour = (dt.datetime.now() - error.error_timestamp).seconds /60 / 60
             if hour <= 1:
                 print('')

@@ -63,7 +63,7 @@ class TaskInput:
                     self.input_data_header = self.dw.column_names
                     self.input_complete = True
                 else:
-                    self.task._log_error('SQL_DATABASE in T_AUTO_TASKS cannot be Null for this task')
+                    self.task._log_error('Read Query', 'SQL_DATABASE in T_AUTO_TASKS cannot be Null for this task')
             except Exception as e:
                 raise e
 
@@ -133,7 +133,7 @@ class TaskInput:
             self.csv_name = self.task.file_name
         self.task.file_name = self.csv_name
         #  Download file
-        self.task.download_file(self.input_source_id, self.csv_name, self.task.downloads)
+        self.download_file(self.input_source_id, self.csv_name, self.task.downloads)
         try:
             #  Open csv and store data
             self._read_csv()
@@ -152,6 +152,25 @@ class TaskInput:
             reader = csv.reader(csv_file, dialect='excel')
             for row in reader:
                 self.input_data.append(row)
+
+    def check_for_file(self):
+        """
+        Check if the file exist in File Storage
+        """
+        if self.task.file_name in os.listdir(self.task.file_storage):
+            return True
+        return False
+
+    def download_file(self, id, file_name, file_location):
+        """
+        Open Google Drive a download required file
+        :param id: The Google Drive ID to download
+        :param file_name: What the file should be named once downloaded
+        :param file_location: Where to store the file
+        """
+        if not self.check_for_file():
+            gd = GDrive()
+            gd.download_file(id, file_name, file_location)
 
     def get_input(self):
         try:

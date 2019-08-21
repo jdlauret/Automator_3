@@ -1,5 +1,5 @@
 from . import *
-import inspect
+import calendar
 
 weekdays = [
         'Sunday',
@@ -141,16 +141,34 @@ def recur_test(task_object):
 
 
 def recur_test_v2(last_run, rate, hour=0, day='Monday', day_of_month=1):
-
-    if last_run is None:
-        return True
-
-    now = dt.datetime.now()
+    end_of_month = calendar.monthrange(dt.datetime.now().year, dt.datetime.now().month)[1]
 
     recurrence_rate = rate
     recurrence_hour = hour
     recurrence_day = day
     recurrence_day_of_month = day_of_month
+
+    if not isinstance(recurrence_day_of_month, int):
+        recurrence_day_of_month = 1
+    elif recurrence_day_of_month < 1:
+        recurrence_day_of_month = 1
+    elif recurrence_day_of_month > end_of_month:
+        recurrence_day_of_month = end_of_month
+
+    if not isinstance(recurrence_hour, int):
+        recurrence_hour = 0
+    elif not 0 <= recurrence_hour <= 23:
+        recurrence_hour = 0
+
+    if not isinstance(recurrence_day, str):
+        recurrence_day = 'Monday'
+    elif recurrence_day not in weekdays:
+        recurrence_day = 'Monday'
+
+    if last_run is None:
+        return True
+
+    now = dt.datetime.now()
 
     if recurrence_rate.lower() == 'hourly':
         now = now.replace(microsecond=0, second=0, minute=0)

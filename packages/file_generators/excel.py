@@ -47,9 +47,9 @@ class ExcelGenerator:
             self.clear_sheet()
             self.wb.save(os.path.join(self.file_path, self.file_name))
 
-        self.write_to_sheet()
-
-        self.wb.save(os.path.join(self.file_path, self.file_name))
+        if self.data_len:
+            self.write_to_sheet()
+            self.wb.save(os.path.join(self.file_path, self.file_name))
 
     def clear_sheet(self):
         for row in self.ws[self.range_name]:

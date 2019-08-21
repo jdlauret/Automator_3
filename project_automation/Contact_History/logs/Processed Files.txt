@@ -1,9 +1,0 @@
-2018-04-01 CDR Supplemental.CSV
-2018-07-25 CDR Supplemental.CSV
-2018-07-26 CDR Supplemental.CSV
-2018-07-27 CDR Supplemental.CSV
-2018-07-28 CDR Supplemental.CSV
-2018-07-29 CDR Supplemental.CSV
-2018-07-30 CDR Supplemental.CSV
-2018-07-31 CDR Supplemental.CSV
-2018-11-07 CDR Supplemental.CSV

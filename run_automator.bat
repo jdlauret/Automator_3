@@ -1,1 +1,1 @@
-python-by-name automator "C:\Automator_3_v1.0\automator.py"
+cd C:\automator & python-by-name automator "automator.py"

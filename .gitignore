@@ -12,7 +12,6 @@ env/
 build/
 develop-eggs/
 dist/
-downloads/
 eggs/
 .eggs/
 lib/
@@ -58,19 +57,22 @@ docs/_build/
 target/
 
 \.idea/
-\desktop.ini
 
-file_storage/
-credentials/
-
-Archive/
-
-sheets\.googleapis\.com-python\.json
-
-qualtrics_data/
-
-file_backups/
+*.ini
+*.csv
+*.json
+*.csv
+*.txt
 
 automator\.exe
 
-project_automation/Contact_History/logs/
+**/qualtrics_data/*
+**/credentials/*
+**/downloads/*
+local_storage/*
+local_backups/* - Day*/*
+**/data/qualtrics_jsons/*
+!**/qualtrics_jsons/.placeholder
+!**\.placeholder
+
+packages/tests/credentials\.json
